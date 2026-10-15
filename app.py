@@ -1,124 +1,294 @@
-from flask import Flask, render_template, request, jsonify
-import gspread
-import pandas as pd
-from datetime import datetime
+import json
 import os
+from flask import Flask, render_template, request, jsonify, Response
+import pandas as pd
+import gspread
+from datetime import datetime
 
 app = Flask(__name__)
 
-NOME_PLANILHA_CONTAGEM = 'contagem_semi_acabado'
+NOME_PLANILHA_PRODUTOS = 'contagem_semi_acabado'
+NOME_PLANILHA_MOVIMENTACAO = 'MOVIMENTACAO_NOMUS'
+
+produtos_cache = []
+codigos_validos_set = set()
 
 def conectar_google_sheets():
     try:
-        # Se a variável de ambiente do Render existir, carrega diretamente do dicionário
+        # Se estiver no Render, usa a chave configurada na variável de ambiente
         if "GOOGLE_CREDENTIALS_JSON" in os.environ:
             creds_dict = json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
             gc = gspread.service_account_from_dict(creds_dict)
         else:
-            # Caso estejas a testar no computador local com o ficheiro JSON físico
+            # Caso estejas a testar localmente com o arquivo físico
             gc = gspread.service_account(filename='credenciais.json')
         return gc
     except Exception as e:
         print(f"[ERRO] Falha ao autenticar com o Google Sheets: {e}")
         return None
-# ==========================================
-# ROTAS DE PÁGINAS (FRONTEND)
-# ==========================================
+
+def carregar_base_produtos():
+    global produtos_cache, codigos_validos_set
+    try:
+        gc = conectar_google_sheets()
+        if not gc:
+            return
+        
+        planilha = gc.open(NOME_PLANILHA_PRODUTOS)
+        # Abre explicitamente a aba chamada 'dados'
+        sheet = planilha.worksheet('dados')
+        dados = sheet.get_all_records()
+        df = pd.DataFrame(dados)
+        
+        produtos_cache = []
+        codigos_validos_set = set()
+        for _, row in df.iterrows():
+            codigo = str(row.get('CODIGO', '')).strip()
+            descricao = str(row.get('DESCRICAO', '')).strip()
+            if codigo and codigo != 'nan':
+                produtos_cache.append({'codigo': codigo, 'descricao': descricao})
+                codigos_validos_set.add(codigo)
+                
+        print(f"[INFO] {len(produtos_cache)} produtos carregados com sucesso da aba 'dados'!")
+    except Exception as e:
+        print(f"[ERRO] Falha ao carregar produtos: {e}")
+
+# Carrega os produtos ao iniciar a aplicação
+carregar_base_produtos()
 
 @app.route('/')
 def index_contagem():
     return render_template('contagem_estoque.html')
 
-@app.route('/api/obter_dados_iniciais')
-def obter_dados_iniciais():
-    """Retorna lista de códigos válidos da aba dados e o mês/ano atual padrão"""
-    gc = conectar_google_sheets()
-    if not gc:
-        return jsonify({"erro": "Falha de conexão"}), 500
+@app.route('/buscar_produtos', methods=['GET'])
+def buscar_produtos():
+    termo = request.args.get('termo', '').lower().strip()
+    if not termo:
+        return jsonify([])
     
+    resultados = []
+    for p in produtos_cache:
+        if termo in p['codigo'].lower() or termo in p['descricao'].lower():
+            resultados.append(p)
+            if len(resultados) >= 15:
+                break
+    return jsonify(resultados)
+
+@app.route('/salvar_lote', methods=['POST'])
+def salvar_lote():
+    dados = request.json
+    data_lote = dados.get('data') # Recebe o formato "MM/AAAA" vindo dos seletores
+    itens = dados.get('itens', [])
+
+    if not data_lote or not itens:
+        return jsonify({'sucesso': False, 'mensagem': 'Mês/Ano ou itens não informados!'})
+
     try:
-        planilha = gc.open(NOME_PLANILHA_CONTAGEM)
-    except Exception:
-        # Se a planilha não existir no Drive, cria-a automaticamente
-        planilha = gc.create(NOME_PLANILHA_CONTAGEM)
-        sheet1 = planilha.sheet1
-        sheet1.update_title("dados")
-        sheet1.append_row(["id", "codigo", "descricao"])
+        for item in itens:
+            cod_item = str(item.get('CODIGO', '')).strip()
+            if cod_item not in codigos_validos_set:
+                return jsonify({
+                    'sucesso': False, 
+                    'mensagem': f'Bloqueado! O código "{cod_item}" não existe na aba dados da planilha oficial.'
+                })
 
-    # Carregar aba dados
+        gc = conectar_google_sheets()
+        if not gc:
+            return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'})
+
+        planilha_mov = gc.open(NOME_PLANILHA_MOVIMENTACAO)
+        
+        import uuid
+        try:
+            sheet_mov = planilha_mov.worksheet(data_lote)
+        except gspread.exceptions.WorksheetNotFound:
+            # Cria a aba com o nome do Mês/Ano (ex: 10/2026)
+            sheet_mov = planilha_mov.add_worksheet(title=data_lote, rows="1000", cols="7")
+            sheet_mov.append_row(["ID", "Data", "Código", "Quantidade", "Tipo", "Status", "Inventario Feito"])
+
+        linhas_para_adicionar = []
+        for item in itens:
+            codigo = item.get('CODIGO', '')
+            quantidade = int(item.get('QUANTIDADE', 1))
+            tipo = item.get('TIPO', 'Contagem')
+            status = 'Não'
+            inventario_feito = 'Não'
+            
+            row_id = str(uuid.uuid4())[:8]
+            linhas_para_adicionar.append([row_id, data_lote, codigo, quantidade, tipo, status, inventario_feito])
+
+        sheet_mov.append_rows(linhas_para_adicionar)
+        
+        return jsonify({'sucesso': True, 'mensagem': f'Sucesso! Itens guardados na aba {data_lote} em MOVIMENTACAO_NOMUS.'})
+    
+    except Exception as e:
+        return jsonify({'sucesso': False, 'mensagem': f'Erro ao processar: {str(e)}'})
+
+@app.route('/atualizar_status_lote_por_id', methods=['POST'])
+def atualizar_status_lote_por_id():
     try:
-        sheet_dados = planilha.worksheet("dados")
-        registros_dados = sheet_dados.get_all_records()
-    except Exception:
-        registros_dados = []
+        dados = request.get_json()
+        if not dados:
+            return jsonify({'sucesso': False, 'mensagem': 'Dados inválidos enviados.'}), 400
+            
+        data_consulta = str(dados.get('data', '')).strip()
+        ids_selecionados = [str(i).strip() for i in dados.get('ids', [])]
+        novo_status = str(dados.get('status', 'Não')).strip()
+        
+        if not data_consulta or not ids_selecionados:
+            return jsonify({'sucesso': False, 'mensagem': 'Nenhum item selecionado.'}), 400
+            
+        gc = conectar_google_sheets()
+        if not gc:
+            return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'}), 500
+            
+        planilha = gc.open(NOME_PLANILHA_MOVIMENTACAO)
+        
+        try:
+            aba = planilha.worksheet(data_consulta)
+        except Exception:
+            return jsonify({'sucesso': False, 'mensagem': f'Aba da data {data_consulta} não encontrada.'}), 400
+            
+        linhas_planilha = aba.get_all_values()
+        if not linhas_planilha or len(linhas_planilha) < 2:
+            return jsonify({'sucesso': False, 'mensagem': 'A planilha está vazia.'}), 400
+            
+        cabecalhos = [str(c).strip().upper() for c in linhas_planilha[0]]
+        
+        if "ID" not in cabecalhos or "STATUS" not in cabecalhos:
+            return jsonify({'sucesso': False, 'mensagem': 'Colunas ID ou STATUS não encontradas na planilha.'}), 400
+            
+        col_id_idx = cabecalhos.index("ID") + 1
+        col_status_idx = cabecalhos.index("STATUS") + 1
+        
+        cell_updates = []
+        contador = 0
+        
+        for idx_l, linha in enumerate(linhas_planilha):
+            if idx_l == 0:
+                continue
+                
+            id_celula = str(linha[col_id_idx - 1]).strip() if len(linha) >= col_id_idx else ""
+            
+            if id_celula in ids_selecionados:
+                cell_address = gspread.utils.rowcol_to_a1(idx_l + 1, col_status_idx)
+                cell_updates.append({
+                    'range': cell_address,
+                    'values': [[novo_status]]
+                })
+                contador += 1
+                
+        if cell_updates:
+            aba.batch_update(cell_updates)
+                
+        return jsonify({'sucesso': True, 'mensagem': f'Status atualizado com sucesso em {contador} item(ns)!'})
+        
+    except Exception as e:
+        return jsonify({'sucesso': False, 'mensagem': f'Erro interno no servidor: {str(e)}'}), 500
 
-    mes_ano_atual = datetime.now().strftime('%B_%Y').capitalize() # Ex: Outubro_2026
-    
-    return jsonify({
-        "produtos_validos": registros_dados,
-        "mes_ano_padrao": mes_ano_atual
-    })
+@app.route('/consultar_movimentacao', methods=['GET'])
+def consultar_movimentacao():
+    data_consulta = request.args.get('data', '').strip()
+    if not data_consulta:
+        return jsonify({'sucesso': False, 'mensagem': 'Mês/Ano não informado!'})
 
-@app.route('/api/salvar_cadastro_produto', methods=['POST'])
-def salvar_cadastro_produto():
-    """Salva código e descrição na aba dados com ID automático"""
-    data = request.json
-    codigo = str(data.get('codigo', '')).strip()
-    descricao = str(data.get('descricao', '')).strip()
-
-    if not codigo or not descricao:
-        return jsonify({"sucesso": False, "mensagem": "Código e Descrição são obrigatórios!"})
-
-    gc = conectar_google_sheets()
-    planilha = gc.open(NOME_PLANILHA_CONTAGEM)
-    sheet_dados = planilha.worksheet("dados")
-    
-    registros = sheet_dados.get_all_records()
-    
-    # Verifica se já existe
-    for r in registros:
-        if str(r.get('codigo', '')).strip() == codigo:
-            return jsonify({"sucesso": False, "mensagem": "Este código já está cadastrado!"})
-
-    novo_id = f"item_{len(registros) + 1}_{int(datetime.now().timestamp())}"
-    sheet_dados.append_row([novo_id, codigo, descricao])
-    
-    return jsonify({"sucesso": True, "mensagem": "Produto cadastrado com sucesso!"})
-
-@app.route('/api/salvar_contagem', methods=['POST'])
-def salvar_contagem():
-    """Salva a contagem individual validando se o código existe na aba dados"""
-    data = request.json
-    codigo = str(data.get('codigo', '')).strip()
-    contagem = float(data.get('contagem', 0))
-    mes_ano = str(data.get('mes_ano', '')).strip()
-
-    gc = conectar_google_sheets()
-    planilha = gc.open(NOME_PLANILHA_CONTAGEM)
-
-    # 1. Valida se o código existe na aba 'dados'
-    sheet_dados = planilha.worksheet("dados")
-    produtos = sheet_dados.get_all_records()
-    produto_encontrado = next((p for p in produtos if str(p.get('codigo')).strip() == codigo), None)
-
-    if not produto_encontrado:
-        return jsonify({"sucesso": False, "mensagem": "Erro: Este código não está cadastrado na base de dados!"})
-
-    # 2. Garante que a aba do mês existe na planilha
     try:
-        sheet_mes = planilha.worksheet(mes_ano)
-    except Exception:
-        sheet_mes = planilha.add_worksheet(title=mes_ano, rows="1000", cols="10")
-        sheet_mes.append_row(["id", "codigo", "contagem", "saldo", "diferenca"])
+        gc = conectar_google_sheets()
+        if not gc:
+            return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'})
 
-    # 3. Registo e cálculo de diferença
-    saldo_estoque = 15.0 # Podes futuramente puxar o saldo guardado se aplicável
-    diferenca = contagem - saldo_estoque
-    novo_id = f"cont_{int(datetime.now().timestamp())}"
+        planilha_mov = gc.open(NOME_PLANILHA_MOVIMENTACAO)
+        
+        try:
+            sheet_mov = planilha_mov.worksheet(data_consulta)
+        except gspread.exceptions.WorksheetNotFound:
+            return jsonify({'sucesso': True, 'itens': [], 'mensagem': f'Nenhuma contagem encontrada para {data_consulta}.'})
 
-    sheet_mes.append_row([novo_id, codigo, contagem, saldo_estoque, diferenca])
+        linhas = sheet_mov.get_all_values()
+        if not linhas or len(linhas) < 2:
+            return jsonify({'sucesso': True, 'itens': [], 'mensagem': f'Nenhuma contagem encontrada para {data_consulta}.'})
 
-    return jsonify({"sucesso": True, "mensagem": "Contagem salva com sucesso!"})
+        cabecalhos = [str(c).strip().upper() for c in linhas[0]]
+        tem_id = "ID" in cabecalhos
+
+        itens_formatados = []
+        for idx in range(1, len(linhas)):
+            row = linhas[idx]
+            if not any(row):
+                continue
+            
+            if tem_id:
+                row_id = row[cabecalhos.index("ID")] if "ID" in cabecalhos and len(row) > cabecalhos.index("ID") else f"linha_{idx+1}"
+                data_val = row[cabecalhos.index("DATA")] if "DATA" in cabecalhos and len(row) > cabecalhos.index("DATA") else data_consulta
+                codigo_val = row[cabecalhos.index("CÓDIGO")] if "CÓDIGO" in cabecalhos and len(row) > cabecalhos.index("CÓDIGO") else (row[cabecalhos.index("CODIGO")] if "CODIGO" in cabecalhos and len(row) > cabecalhos.index("CODIGO") else "")
+                qtd_val = row[cabecalhos.index("QUANTIDADE")] if "QUANTIDADE" in cabecalhos and len(row) > cabecalhos.index("QUANTIDADE") else 1
+                tipo_val = row[cabecalhos.index("TIPO")] if "TIPO" in cabecalhos and len(row) > cabecalhos.index("TIPO") else "Contagem"
+                status_val = row[cabecalhos.index("STATUS")] if "STATUS" in cabecalhos and len(row) > cabecalhos.index("STATUS") else "Não"
+            else:
+                row_id = f"fallback_{idx+1}"
+                data_val = row[0] if len(row) > 0 else data_consulta
+                codigo_val = row[1] if len(row) > 1 else ""
+                qtd_val = row[2] if len(row) > 2 else 1
+                tipo_val = row[3] if len(row) > 3 else "Contagem"
+                status_val = row[4] if len(row) > 4 else "Não"
+
+            itens_formatados.append({
+                "ID": row_id,
+                "Data": data_val,
+                "Código": codigo_val,
+                "Quantidade": qtd_val,
+                "Tipo": tipo_val,
+                "Status": status_val
+            })
+
+        return jsonify({'sucesso': True, 'itens': itens_formatados})
+
+    except Exception as e:
+        return jsonify({'sucesso': False, 'mensagem': f'Erro ao consultar: {str(e)}'})
+
+@app.route('/excluir_movimentacao', methods=['POST'])
+def excluir_movimentacao():
+    dados = request.json
+    data_mov = dados.get('data')
+    row_id = str(dados.get('id', '')).strip()
+
+    if not data_mov or not row_id:
+        return jsonify({'sucesso': False, 'mensagem': 'Data ou ID não informados!'})
+
+    try:
+        gc = conectar_google_sheets()
+        if not gc:
+            return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'})
+
+        planilha_mov = gc.open(NOME_PLANILHA_MOVIMENTACAO)
+        sheet_mov = planilha_mov.worksheet(data_mov)
+        
+        linhas = sheet_mov.get_all_values()
+        if not linhas or len(linhas) < 2:
+            return jsonify({'sucesso': False, 'mensagem': 'Aba vazia.'})
+        
+        cabecalhos = [str(c).strip().upper() for c in linhas[0]]
+        
+        if "ID" not in cabecalhos:
+            return jsonify({'sucesso': False, 'mensagem': 'Coluna ID não encontrada na planilha.'})
+            
+        col_id_idx = cabecalhos.index("ID") + 1
+
+        linha_encontrada = -1
+        for idx in range(1, len(linhas)):
+            val_id = str(linhas[idx][col_id_idx - 1]).strip() if len(linhas[idx]) >= col_id_idx else ""
+            if val_id == row_id:
+                linha_encontrada = idx + 1
+                break
+
+        if linha_encontrada != -1:
+            sheet_mov.delete_rows(linha_encontrada)
+            return jsonify({'sucesso': True, 'mensagem': 'Item excluído com sucesso da planilha!'})
+        else:
+            return jsonify({'sucesso': False, 'mensagem': 'Item não encontrado pelo ID na planilha.'})
+
+    except Exception as e:
+        return jsonify({'sucesso': False, 'mensagem': f'Erro ao excluir: {str(e)}'})
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True)
