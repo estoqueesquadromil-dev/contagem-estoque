@@ -1,0 +1,4 @@
+flask
+pandas
+gspread
+gunicorn
