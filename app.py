@@ -25,7 +25,7 @@ def conectar_google_sheets():
 # ROTAS DE PÁGINAS (FRONTEND)
 # ==========================================
 
-@app.route('/contagem')
+@app.route('/')
 def index_contagem():
     return render_template('contagem_estoque.html')
 
