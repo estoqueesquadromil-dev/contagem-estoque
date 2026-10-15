@@ -10,12 +10,17 @@ NOME_PLANILHA_CONTAGEM = 'contagem_semi_acabado'
 
 def conectar_google_sheets():
     try:
-        gc = gspread.service_account(filename='credenciais.json')
+        # Se a variável de ambiente do Render existir, carrega diretamente do dicionário
+        if "GOOGLE_CREDENTIALS_JSON" in os.environ:
+            creds_dict = json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
+            gc = gspread.service_account_from_dict(creds_dict)
+        else:
+            # Caso estejas a testar no computador local com o ficheiro JSON físico
+            gc = gspread.service_account(filename='credenciais.json')
         return gc
     except Exception as e:
-        print(f"[ERRO] Falha ao conectar ao Google Sheets: {e}")
+        print(f"[ERRO] Falha ao autenticar com o Google Sheets: {e}")
         return None
-
 # ==========================================
 # ROTAS DE PÁGINAS (FRONTEND)
 # ==========================================
