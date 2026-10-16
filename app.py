@@ -4,6 +4,7 @@ import pandas as pd
 import gspread
 import uuid
 from flask import Flask, render_template, request, jsonify
+import traceback
 
 app = Flask(__name__)
 
@@ -201,21 +202,26 @@ if __name__ == '__main__':
 
 
 
+
+
 @app.route('/teste_planilha', methods=['GET'])
 def teste_planilha():
     try:
         gc = conectar_google_sheets()
         if not gc:
-            return "ERRO: Falha ao autenticar com o Google Sheets (verifique as credenciais)."
+            return "ERRO: Falha ao autenticar com o Google Sheets (verifique as credenciais no Render)."
         
+        # Tenta abrir a planilha 'contagem_semi_acabado'
         planilha = gc.open(NOME_PLANILHA)
+        
+        # Tenta abrir a aba 'dados'
         sheet = planilha.worksheet('dados')
         dados = sheet.get_all_records()
         
         if not dados:
-            return "AVISO: A aba 'dados' foi encontrada, mas está vazia!"
+            return "AVISO: A aba 'dados' foi encontrada na planilha, mas não tem registos!"
             
-        # Retorna as primeiras 5 linhas para vermos na tela
-        return f"SUCESSO! Total de linhas na aba 'dados': {len(dados)}<br><br>Exemplo dos primeiros dados lidos:<br>{str(dados[:5])}"
+        return f"SUCESSO! Total de linhas na aba 'dados': {len(dados)}<br><br>Exemplo dos primeiros dados:<br>{str(dados[:5])}"
     except Exception as e:
-        return f"ERRO CRITICO AO LER A PLANILHA: {str(e)}"
+        # Exibe o tipo do erro e a mensagem exata
+        return f"ERRO CRITICO AO LER A PLANILHA ({type(e).__name__}): {str(e)}<br><pre>{traceback.format_exc()}</pre>"
