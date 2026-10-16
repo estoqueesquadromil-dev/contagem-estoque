@@ -1,14 +1,14 @@
 import os
 import uuid
+import json
 import gspread
 from flask import Flask, render_template, request, jsonify
-import json
 from google.oauth2.service_account import Credentials
-
 
 app = Flask(__name__)
 
-PLANILHA_ID = '1HPkjEtFRClBqk3_yD4LGe9pA3L6XrHaaUikGh57Q'
+# Nome oficial da planilha
+NOME_PLANILHA = 'contagem_semi_acabado'
 
 def conectar_google_sheets():
     try:
@@ -30,11 +30,12 @@ def conectar_google_sheets():
         print(f"[ERRO] Falha ao autenticar: {e}")
         return None
 
-
-
+# --- ROTA PRINCIPAL DO SITE ---
+@app.route('/')
 def index_contagem():
     return render_template('contagem_estoque.html')
 
+# --- ROTA DE AUTOCOMPLETE (BUSCA) ---
 @app.route('/buscar_produtos', methods=['GET'])
 def buscar_produtos():
     termo = request.args.get('termo', '').lower().strip()
@@ -46,8 +47,7 @@ def buscar_produtos():
         if not gc:
             return jsonify([])
             
-        # Abre diretamente pelo nome exato da planilha
-        planilha = gc.open('contagem_semi_acabado')
+        planilha = gc.open(NOME_PLANILHA)
         sheet = planilha.worksheet('dados')
         dados = sheet.get_all_values()
         
@@ -57,7 +57,7 @@ def buscar_produtos():
         resultados = []
         codigos_vistos = set()
 
-        # Lê da linha 2 em diante (A = Código/PRODUTO, B = DESCRIÇÃO)
+        # Lê da linha 2 em diante (A = PRODUTO / Código, B = DESCRICAO)
         for linha in dados[1:]:
             if len(linha) >= 1:
                 codigo = str(linha[0]).strip()
@@ -76,8 +76,8 @@ def buscar_produtos():
         print(f"[ERRO BUSCA]: {e}")
         return jsonify([])
 
-
-
+# --- ROTA PARA SALVAR LOTE ---
+@app.route('/salvar_lote', methods=['POST'])
 def salvar_lote():
     dados = request.json
     data_lote = dados.get('data')
@@ -88,7 +88,7 @@ def salvar_lote():
 
     try:
         gc = conectar_google_sheets()
-        planilha = gc.open_by_key(PLANILHA_ID)
+        planilha = gc.open(NOME_PLANILHA)
         
         try:
             sheet_mov = planilha.worksheet(data_lote)
@@ -114,6 +114,7 @@ def salvar_lote():
     except Exception as e:
         return jsonify({'sucesso': False, 'mensagem': f'Erro: {str(e)}'})
 
+# --- ROTA PARA CONSULTAR MOVIMENTAÇÃO ---
 @app.route('/consultar_movimentacao', methods=['GET'])
 def consultar_movimentacao():
     data_consulta = request.args.get('data', '').strip()
@@ -122,7 +123,7 @@ def consultar_movimentacao():
 
     try:
         gc = conectar_google_sheets()
-        planilha = gc.open_by_key(PLANILHA_ID)
+        planilha = gc.open(NOME_PLANILHA)
         try:
             sheet_mov = planilha.worksheet(data_consulta)
         except gspread.exceptions.WorksheetNotFound:
@@ -149,6 +150,7 @@ def consultar_movimentacao():
     except Exception as e:
         return jsonify({'sucesso': False, 'mensagem': f'Erro: {str(e)}'})
 
+# --- ROTA PARA EXCLUIR MOVIMENTAÇÃO ---
 @app.route('/excluir_movimentacao', methods=['POST'])
 def excluir_movimentacao():
     dados = request.json
@@ -156,7 +158,7 @@ def excluir_movimentacao():
     row_id = str(dados.get('id', '')).strip()
     try:
         gc = conectar_google_sheets()
-        planilha = gc.open_by_key(PLANILHA_ID)
+        planilha = gc.open(NOME_PLANILHA)
         sheet_mov = planilha.worksheet(data_mov)
         linhas = sheet_mov.get_all_values()
         for idx in range(1, len(linhas)):
@@ -167,6 +169,7 @@ def excluir_movimentacao():
     except Exception as e:
         return jsonify({'sucesso': False, 'mensagem': f'Erro: {str(e)}'})
 
+# --- ROTA PARA ATUALIZAR STATUS ---
 @app.route('/atualizar_status_lote_por_id', methods=['POST'])
 def atualizar_status_lote_por_id():
     try:
@@ -174,8 +177,9 @@ def atualizar_status_lote_por_id():
         data_consulta = str(dados.get('data', '')).strip()
         ids = [str(i).strip() for i in dados.get('ids', [])]
         novo_status = str(dados.get('status', 'Não')).strip()
+        
         gc = conectar_google_sheets()
-        aba = gc.open_by_key(PLANILHA_ID).worksheet(data_consulta)
+        aba = gc.open(NOME_PLANILHA).worksheet(data_consulta)
         linhas = aba.get_all_values()
         
         updates = []
@@ -188,12 +192,7 @@ def atualizar_status_lote_por_id():
     except Exception as e:
         return jsonify({'sucesso': False, 'mensagem': f'Erro: {str(e)}'})
 
-if __name__ == '__main__':
-    app.run(debug=True)
-
-
-
-
+# --- ROTA DE TESTE DIRETO ---
 @app.route('/teste_direto_planilha', methods=['GET'])
 def teste_direto_planilha():
     try:
@@ -201,8 +200,7 @@ def teste_direto_planilha():
         if not gc:
             return jsonify({"sucesso": False, "erro": "Falha na autenticação com o Google Sheets"})
         
-        # Abre diretamente pelo nome que o bot enxerga
-        planilha = gc.open('contagem_semi_acabado')
+        planilha = gc.open(NOME_PLANILHA)
         sheet = planilha.worksheet('dados')
         linhas = sheet.get_all_values()
         
@@ -214,3 +212,6 @@ def teste_direto_planilha():
         })
     except Exception as e:
         return jsonify({"sucesso": False, "erro": str(e)})
+
+if __name__ == '__main__':
+    app.run(debug=True)
