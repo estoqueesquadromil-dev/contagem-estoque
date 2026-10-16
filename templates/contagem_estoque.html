@@ -1,253 +1,218 @@
 <!DOCTYPE html>
-<html lang="pt">
+<html lang="pt-br">
 <head>
-    <meta charset="UTF-8">
-    <title>Sistema de Contagem de Estoque</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        body {
-            background-color: #f8f9fa;
-            overflow-x: hidden;
-        }
-        #sidebar {
-            position: fixed;
-            top: 0;
-            left: -260px;
-            width: 260px;
-            height: 100%;
-            background-color: #1e1e2f;
-            color: #fff;
-            transition: all 0.3s ease;
-            z-index: 1050;
-            padding-top: 60px;
-            box-shadow: 4px 0 10px rgba(0,0,0,0.1);
-        }
-        #sidebar.active {
-            left: 0;
-        }
-        #sidebar .nav-link {
-            color: #a0a0b2;
-            padding: 12px 20px;
-            font-size: 15px;
-            transition: 0.2s;
-            border-left: 4px solid transparent;
-        }
-        #sidebar .nav-link:hover, #sidebar .nav-link.active {
-            color: #fff;
-            background-color: #2b2b40;
-            border-left-color: #28a745;
-        }
-        #content {
-            transition: all 0.3s ease;
-            padding: 20px;
-        }
-        .navbar-custom {
-            background-color: #ffffff;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            padding: 10px 20px;
-        }
-        #overlay {
-            position: fixed;
-            top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(0,0,0,0.4);
-            display: none;
-            z-index: 1040;
-        }
-        #overlay.active {
-            display: block;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contagem de Estoque - Nomus</title>
+  <link href="https://cdn.jsdelivr.net/style.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #f8f9fa; padding: 20px; }
+    .card { border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .autocomplete-items {
+      position: absolute;
+      border: 1px solid #d4d4d4;
+      border-bottom: none;
+      border-top: none;
+      z-index: 99;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background-color: #fff;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .autocomplete-items div {
+      padding: 10px;
+      cursor: pointer;
+      background-color: #fff;
+      border-bottom: 1px solid #d4d4d4;
+    }
+    .autocomplete-items div:hover { background-color: #e9ecef; }
+  </style>
 </head>
 <body>
 
-    <div id="overlay" onclick="toggleSidebar()"></div>
+<div class="container">
+  <div class="card p-4 mb-4">
+    <h2 class="mb-3 text-primary">Sistema de Contagem de Estoque</h2>
 
-    <!-- Menu Lateral (Três Tracinhos) -->
-    <div id="sidebar">
-        <h4 class="text-center mb-4 text-white"><i class="fa-solid fa-boxes-stacked"></i> Contagem</h4>
-        <div class="nav flex-column nav-pills" id="v-pills-tab" role="tablist">
-            <button class="nav-link active text-start" data-bs-toggle="pill" data-bs-target="#tab-lancamento" onclick="toggleSidebar()"><i class="fa-solid fa-wallet me-2"></i> Lançamento de Saldos</button>
-            <button class="nav-link text-start" data-bs-toggle="pill" data-bs-target="#tab-cadastro" onclick="toggleSidebar()"><i class="fa-solid fa-file-circle-plus me-2"></i> Registar Códigos</button>
-            <button class="nav-link text-start" data-bs-toggle="pill" data-bs-target="#tab-semi" onclick="toggleSidebar()"><i class="fa-solid fa-barcode me-2"></i> Semi-Acabado</button>
-            <button class="nav-link text-start" data-bs-toggle="pill" data-bs-target="#tab-consulta" onclick="toggleSidebar()"><i class="fa-solid fa-magnifying-glass me-2"></i> Consulta</button>
-        </div>
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <label for="selectMes" class="form-label">Mês da Contagem:</label>
+        <select id="selectMes" class="form-select">
+          <option value="01">01 - Janeiro</option>
+          <option value="02">02 - Fevereiro</option>
+          <option value="03">03 - Março</option>
+          <option value="04">04 - Abril</option>
+          <option value="05">05 - Maio</option>
+          <option value="06">06 - Junho</option>
+          <option value="07">07 - Julho</option>
+          <option value="08">08 - Agosto</option>
+          <option value="09">09 - Setembro</option>
+          <option value="10" selected>10 - Outubro</option>
+          <option value="11">11 - Novembro</option>
+          <option value="12">12 - Dezembro</option>
+        </select>
+      </div>
+      
+      <div class="col-md-6">
+        <label for="selectAno" class="form-label">Ano:</label>
+        <select id="selectAno" class="form-select">
+          <option value="2026" selected>2026</option>
+          <option value="2027">2027</option>
+          <option value="2028">2028</option>
+        </select>
+      </div>
     </div>
 
-    <div id="content">
-        <nav class="navbar navbar-expand navbar-custom rounded mb-4">
-            <div class="container-fluid">
-                <button class="btn btn-outline-dark border-0" onclick="toggleSidebar()">
-                    <i class="fa-solid fa-bars fa-lg"></i>
-                </button>
-                <span class="navbar-brand mb-0 h1 ms-3">Sistema de Contagem de Estoque</span>
-                
-                <div class="ms-auto d-flex align-items-center">
-                    <span class="text-muted small me-3">Última atualização: <span id="txtUltimaAtualizacao">-</span></span>
-                </div>
-            </div>
-        </nav>
-
-        <div class="container-fluid">
-            <!-- Mês e Ano Global -->
-            <div class="card shadow-sm mb-4 border-0">
-                <div class="card-body row align-items-center">
-                    <div class="col-md-4">
-                        <label class="form-label fw-bold">Mês e Ano de Referência:</label>
-                        <input type="text" id="inputMesAno" class="form-control" placeholder="Ex: Outubro_2026">
-                    </div>
-                </div>
-            </div>
-
-            <div class="tab-content card shadow-sm border-0 p-4 bg-white">
-                
-                <!-- 1. Lançamento / Saldos -->
-                <div class="tab-pane fade show active" id="tab-lancamento">
-                    <h4 class="mb-3">Definir Saldos de Estoque</h4>
-                    <div class="mb-3">
-                        <label class="form-label">Cole os Códigos e Quantidades (um por linha):</label>
-                        <textarea id="txtSaldosLote" class="form-control" rows="5" placeholder="C018-489 10&#10;C198-371 25"></textarea>
-                    </div>
-                    <button class="btn btn-success"><i class="fa-solid fa-floppy-disk me-1"></i> Salvar Saldos</button>
-                </div>
-
-                <!-- 2. Registar Códigos (Aba Dados) -->
-                <div class="tab-pane fade" id="tab-cadastro">
-                    <h4 class="mb-3">Cadastrar Novo Produto (Base de Dados)</h4>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Código do Produto:</label>
-                            <input type="text" id="cadCodigo" class="form-control" placeholder="Ex: C018-489">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Descrição do Produto:</label>
-                            <input type="text" id="cadDescricao" class="form-control" placeholder="Ex: Perfil de Alumínio...">
-                        </div>
-                    </div>
-                    <button class="btn btn-primary" onclick="cadastrarProduto()"><i class="fa-solid fa-plus me-1"></i> Salvar na Base</button>
-                </div>
-
-                <!-- 3. Semi-Acabado -->
-                <div class="tab-pane fade" id="tab-semi">
-                    <h4 class="mb-3">Lançamento de Contagem - Semi-Acabado</h4>
-                    <div class="row position-relative">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Código do Produto:</label>
-                            <input type="text" id="inputCodigoBusca" class="form-control" placeholder="Digite o código..." autocomplete="off" oninput="filtrarCodigos()">
-                            <div id="listaSugestoes" class="list-group position-absolute w-100 shadow" style="z-index: 1000; max-height: 200px; overflow-y: auto;"></div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Descrição:</label>
-                            <input type="text" id="txtDescricaoProduto" class="form-control bg-light" readonly>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Saldo de Estoque Atual:</label>
-                            <input type="text" id="txtSaldoEstoque" class="form-control bg-light" readonly value="0">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Quantidade Contada:</label>
-                            <input type="number" id="inputContagem" class="form-control" placeholder="0" oninput="calcularDiferenca()">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Diferença (Contagem - Saldo):</label>
-                            <input type="text" id="txtDiferenca" class="form-control fw-bold bg-light" readonly value="0">
-                        </div>
-                    </div>
-                    <button class="btn btn-success" onclick="salvarContagemItem()"><i class="fa-solid fa-check me-1"></i> Salvar Contagem</button>
-                </div>
-
-                <!-- 4. Consulta -->
-                <div class="tab-pane fade" id="tab-consulta">
-                    <h4 class="mb-3">Consulta de Lançamentos</h4>
-                    <p class="text-muted">Filtros e tabela de consulta de itens.</p>
-                </div>
-
-            </div>
-        </div>
+    <div class="row g-2 mb-3 position-relative">
+      <div class="col-md-6">
+        <label for="buscaProduto" class="form-label">Buscar Produto (Código ou Descrição):</label>
+        <input type="text" id="buscaProduto" class="form-control" placeholder="Digite para pesquisar..." autocomplete="off">
+        <div id="autocomplete-list" class="autocomplete-items"></div>
+      </div>
+      <div class="col-md-3">
+        <label for="qtdProduto" class="form-label">Quantidade:</label>
+        <input type="number" id="qtdProduto" class="form-control" value="1" min="1">
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <button class="btn btn-success w-100" onclick="adicionarNaLista()">Adicionar Item</button>
+      </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        let produtosGlobais = [];
+    <div class="table-responsive">
+      <table class="table table-striped align-middle" id="tabelaItens">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Descrição</th>
+            <th>Quantidade</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="corpoTabela">
+        </tbody>
+      </table>
+    </div>
 
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('active');
-            document.getElementById('overlay').classList.toggle('active');
-        }
+    <div class="d-flex justify-content-end mt-3">
+      <button class="btn btn-primary btn-lg" onclick="salvarLote()">Salvar Contagem no Sheets</button>
+    </div>
+  </div>
+</div>
 
-        async function carregarConfigIniciais() {
-            let res = await fetch('/api/obter_dados_iniciais');
-            let data = await res.json();
-            produtosGlobais = data.produtos_validos || [];
-            document.getElementById('inputMesAno').value = data.mes_ano_padrao || 'Outubro_2026';
-            document.getElementById('txtUltimaAtualizacao').innerText = new Date().toLocaleTimeString();
-        }
+<script>
+  let produtoSelecionado = null;
+  let listaLote = [];
 
-        async function cadastrarProduto() {
-            let codigo = document.getElementById('cadCodigo').value;
-            let descricao = document.getElementById('cadDescricao').value;
-            let res = await fetch('/api/salvar_cadastro_produto', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({codigo, descricao})
-            });
-            let data = await res.json();
-            alert(data.mensagem);
-            if(data.sucesso) {
-                document.getElementById('cadCodigo').value = '';
-                document.getElementById('cadDescricao').value = '';
-                carregarConfigIniciais();
-            }
-        }
+  const buscaInput = document.getElementById('buscaProduto');
+  const listaAuto = document.getElementById('autocomplete-list');
 
-        function filtrarCodigos() {
-            let termo = document.getElementById('inputCodigoBusca').value.toLowerCase();
-            let container = document.getElementById('listaSugestoes');
-            container.innerHTML = '';
-            if(!termo) return;
+  buscaInput.addEventListener('input', async function() {
+    const termo = this.value.trim();
+    listaAuto.innerHTML = '';
+    if (!termo) return;
 
-            let filtrados = produtosGlobais.filter(p => p.codigo.toLowerCase().includes(termo));
-            filtrados.forEach(p => {
-                let item = document.createElement('a');
-                item.className = 'list-group-item list-group-item-action';
-                item.innerHTML = `<strong>${p.codigo}</strong> - ${p.descricao}`;
-                item.onclick = () => {
-                    document.getElementById('inputCodigoBusca').value = p.codigo;
-                    document.getElementById('txtDescricaoProduto').value = p.descricao;
-                    document.getElementById('txtSaldoEstoque').value = 15; 
-                    container.innerHTML = '';
-                    calcularDiferenca();
-                };
-                container.appendChild(item);
-            });
-        }
+    try {
+      const res = await fetch(`/buscar_produtos?termo=${encodeURIComponent(termo)}`);
+      const produtos = await res.json();
 
-        function calcularDiferenca() {
-            let saldo = parseFloat(document.getElementById('txtSaldoEstoque').value) || 0;
-            let contagem = parseFloat(document.getElementById('inputContagem').value) || 0;
-            let dif = contagem - saldo;
-            let campoDif = document.getElementById('txtDiferenca');
-            campoDif.value = dif;
-            campoDif.className = `form-control fw-bold ${dif < 0 ? 'text-danger bg-light' : 'text-success bg-light'}`;
-        }
+      produtos.forEach(p => {
+        const div = document.createElement('div');
+        div.innerHTML = `<strong>${p.codigo}</strong> - ${p.descricao}`;
+        div.addEventListener('click', function() {
+          buscaInput.value = `${p.codigo} - ${p.descricao}`;
+          produtoSelecionado = p;
+          listaAuto.innerHTML = '';
+        });
+        listaAuto.appendChild(div);
+      });
+    } catch (e) {
+      console.error('Erro ao buscar produtos:', e);
+    }
+  });
 
-        async function salvarContagemItem() {
-            let codigo = document.getElementById('inputCodigoBusca').value;
-            let contagem = document.getElementById('inputContagem').value;
-            let mes_ano = document.getElementById('inputMesAno').value;
+  document.addEventListener('click', function (e) {
+    if (e.target !== buscaInput) {
+      listaAuto.innerHTML = '';
+    }
+  });
 
-            let res = await fetch('/api/salvar_contagem', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({codigo, contagem, mes_ano})
-            });
-            let data = await res.json();
-            alert(data.mensagem);
-        }
+  function adicionarNaLista() {
+    if (!produtoSelecionado) {
+      alert('Selecione um produto válido da lista!');
+      return;
+    }
+    const qtd = parseInt(document.getElementById('qtdProduto').value) || 1;
 
-        window.onload = carregarConfigIniciais;
-    </script>
+    listaLote.push({
+      CODIGO: produtoSelecionado.codigo,
+      DESCRICAO: produtoSelecionado.descricao,
+      QUANTIDADE: qtd,
+      TIPO: 'Contagem'
+    });
+
+    produtoSelecionado = null;
+    buscaInput.value = '';
+    document.getElementById('qtdProduto').value = 1;
+    renderTabela();
+  }
+
+  function renderTabela() {
+    const corpo = document.getElementById('corpoTabela');
+    corpo.innerHTML = '';
+
+    listaLote.forEach((item, index) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${item.CODIGO}</td>
+        <td>${item.DESCRICAO}</td>
+        <td>${item.QUANTIDADE}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="removerItem(${index})">Remover</button></td>
+      `;
+      corpo.appendChild(tr);
+    });
+  }
+
+  function removerItem(index) {
+    listaLote.splice(index, 1);
+    renderTabela();
+  }
+
+  async function salvarLote() {
+    if (listaLote.length === 0) {
+      alert('Adicione ao menos um item antes de salvar!');
+      return;
+    }
+
+    const mes = document.getElementById('selectMes').value;
+    const ano = document.getElementById('selectAno').value;
+    const dataLote = `${mes}/${ano}`;
+
+    try {
+      const response = await fetch('/salvar_lote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: dataLote,
+          itens: listaLote
+        })
+      });
+
+      const res = await response.json();
+      if (res.sucesso) {
+        alert(res.mensagem);
+        listaLote = [];
+        renderTabela();
+      } else {
+        alert('Erro: ' + res.mensagem);
+      }
+    } catch (e) {
+      alert('Erro ao ligar ao servidor: ' + e);
+    }
+  }
+</script>
+
 </body>
 </html>
