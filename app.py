@@ -409,3 +409,40 @@ def obter_saldo_item():
     except Exception as e:
         print(f"Erro ao obter saldo do item: {e}")
         return jsonify({'sucesso': False, 'saldo': 0})
+
+
+
+# --- ROTA PARA EDITAR QUANTIDADE E RECALCULAR DIFERENÇA NA CONSULTA ---
+@app.route('/atualizar_quantidade_lote', methods=['POST'])
+def atualizar_quantidade_lote():
+    try:
+        dados = request.get_json()
+        data_consulta = str(dados.get('data', '')).strip()
+        row_id = str(dados.get('id', '')).strip()
+        nova_qtd = int(dados.get('quantidade', 0))
+
+        gc = conectar_google_sheets()
+        planilha = gc.open(NOME_PLANILHA)
+        aba = planilha.worksheet(data_consulta)
+        linhas = aba.get_all_values()
+
+        # Procura a linha pelo ID (coluna A / índice 0)
+        for idx, linha in enumerate(linhas[1:], start=2):
+            if len(linha) > 0 and str(linha[0]).strip() == row_id:
+                # Coluna D (índice 3) é o Saldo Estoque
+                saldo_estoque = int(linha[3]) if linha[3].isdigit() else 0
+                nova_diferenca = nova_qtd - saldo_estoque
+
+                # Atualiza no Sheets: Coluna E (Quantidade Contada) e Coluna F (Diferença)
+                aba.update(f'E{idx}', [[nova_qtd]])
+                aba.update(f'F{idx}', [[nova_diferenca]])
+
+                return jsonify({
+                    'sucesso': True, 
+                    'mensagem': 'Quantidade atualizada e diferença recalculada com sucesso!',
+                    'nova_diferenca': nova_diferenca
+                })
+
+        return jsonify({'sucesso': False, 'mensagem': 'Item não encontrado na planilha.'})
+    except Exception as e:
+        return jsonify({'sucesso': False, 'mensagem': f'Erro ao atualizar: {str(e)}'})
