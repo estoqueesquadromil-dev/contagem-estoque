@@ -199,26 +199,31 @@ def teste_direto_planilha():
         if not gc:
             return jsonify({"sucesso": False, "erro": "Falha na autenticação do Google Sheets"})
         
-        # ID exato da planilha 'contagem_semi_acabado'
+        # Lista todas as planilhas que o bot consegue ver na conta dele
+        planilhas_disponiveis = [p['name'] for p in gc.list_spreadsheet_files()]
+        
+        # Tenta abrir pelo ID exato
         planilha_id = '1HPkjEtFRClBqk3_yD4LGe9pA3L6XrHaaUikGh57Q'
         
-        try:
-            planilha = gc.open_by_key(planilha_id)
-        except Exception as e:
-            return jsonify({"sucesso": False, "erro": f"Planilha não encontrada ou não partilhada com o bot: {str(e)}"})
-        
-        try:
-            sheet = planilha.worksheet('dados')
-        except Exception as e:
-            return jsonify({"sucesso": False, "erro": f"A aba 'dados' não foi encontrada na planilha: {str(e)}"})
-        
+        planilha = gc.open_by_key(planilha_id)
+        sheet = planilha.worksheet('dados')
         linhas = sheet.get_all_values()
         
         return jsonify({
             "sucesso": True,
-            "nome_planilha": planilha.title,
-            "total_linhas": len(linhas),
-            "primeira_linha": linhas[0] if len(linhas) > 0 else []
+            "planilhas_visiveis_pelo_bot": planilhas_disponiveis,
+            "total_linhas": len(linhas)
         })
     except Exception as e:
-        return jsonify({"sucesso": False, "erro": str(e)})
+        # Devolve o erro detalhado e a lista de o que o bot realmente enxerga
+        try:
+            gc = conectar_google_sheets()
+            visiveis = [p['name'] for p in gc.list_spreadsheet_files()]
+        except:
+            visiveis = []
+            
+        return jsonify({
+            "sucesso": False, 
+            "erro": str(e),
+            "planilhas_que_o_bot_consegue_ver": visiveis
+        })
