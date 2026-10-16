@@ -330,8 +330,18 @@ async function salvarLote() {
         const ano = anoElem ? anoElem.value : '2026';
         const dataFormatada = `${mes}/${ano}`;
 
-        if (typeof itensTabela === 'undefined' || itensTabela.length === 0) {
+        // Validação da lista de itens usando a variável correta: tabelaItens
+        if (typeof tabelaItens === 'undefined' || tabelaItens.length === 0) {
             alert('Adicione pelo menos um item antes de salvar!');
+            
+            // IMPORTANTE: Libera o botão se a lista estiver vazia para não trancá-lo
+            if (btnSalvar) {
+                btnSalvar.disabled = false;
+                btnSalvar.innerText = btnSalvar.dataset.textoOriginal || "Salvar Contagem";
+                btnSalvar.style.opacity = "1";
+                btnSalvar.style.cursor = "pointer";
+                btnSalvar.style.pointerEvents = "auto";
+            }
             return;
         }
 
@@ -340,7 +350,7 @@ async function salvarLote() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 data: dataFormatada,
-                itens: itensTabela
+                itens: tabelaItens // Ajustado para enviar a variável correta da sua tabela
             })
         });
 
@@ -358,7 +368,7 @@ async function salvarLote() {
         console.error("Erro ao salvar:", erro);
         alert("Erro de conexão ao salvar!");
     } finally {
-        // Restaura o botão ao estado normal após terminar
+        // Restaura o botão ao estado normal após terminar com sucesso ou erro
         if (btnSalvar) {
             btnSalvar.disabled = false;
             btnSalvar.innerText = btnSalvar.dataset.textoOriginal || "Salvar Contagem";
@@ -368,7 +378,6 @@ async function salvarLote() {
         }
     }
 }
-
     
     
     async function consultarMovimentacao() {
