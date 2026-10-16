@@ -181,8 +181,6 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
 
-    // Adicione esta variável lá no topo do seu script (fora da função)
-    let bloqueadoEnvio = false;
 
     
     let produtoSelecionado = null;
@@ -306,16 +304,15 @@
 
 
 
-let bloqueadoEnvio = false;
+
 
 async function salvarLote() {
-    // 1. Evita cliques múltiplos simultâneos
-    if (bloqueadoEnvio) return;
-    bloqueadoEnvio = true;
-
     const btnSalvar = document.getElementById('btnSalvar');
+    
+    // Se o botão já estiver desativado, impede novos cliques instantaneamente
+    if (btnSalvar && btnSalvar.disabled) return;
 
-    // 2. Trava o botão visualmente
+    // Desativa o botão e muda o visual imediatamente
     if (btnSalvar) {
         btnSalvar.disabled = true;
         btnSalvar.dataset.textoOriginal = btnSalvar.innerText;
@@ -326,16 +323,13 @@ async function salvarLote() {
     }
 
     try {
-        // Obter os valores dos selects de mês e ano da tela
         const mesElem = document.getElementById('mesContagem') || document.querySelector('select:nth-of-type(1)');
         const anoElem = document.getElementById('anoContagem') || document.querySelector('select:nth-of-type(2)');
         
-        // Pega os valores ou ajusta para o formato 'MM/YYYY' (ex: '10/2026')
         const mes = mesElem ? mesElem.value : '10';
         const ano = anoElem ? anoElem.value : '2026';
         const dataFormatada = `${mes}/${ano}`;
 
-        // Verifica se existem itens adicionados na lista (itensTabela)
         if (typeof itensTabela === 'undefined' || itensTabela.length === 0) {
             alert('Adicione pelo menos um item antes de salvar!');
             return;
@@ -346,7 +340,7 @@ async function salvarLote() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 data: dataFormatada,
-                itens: itensTabela // Usa a variável de itens do seu formulário
+                itens: itensTabela
             })
         });
 
@@ -354,7 +348,6 @@ async function salvarLote() {
 
         if (resultado.sucesso) {
             alert(resultado.mensagem);
-            // Limpa a tabela se existir a função de limpar
             if (typeof limparTabela === 'function') {
                 limparTabela();
             }
@@ -365,9 +358,7 @@ async function salvarLote() {
         console.error("Erro ao salvar:", erro);
         alert("Erro de conexão ao salvar!");
     } finally {
-        // 3. Libera o bloqueio e restaura o botão
-        bloqueadoEnvio = false;
-
+        // Restaura o botão ao estado normal após terminar
         if (btnSalvar) {
             btnSalvar.disabled = false;
             btnSalvar.innerText = btnSalvar.dataset.textoOriginal || "Salvar Contagem";
@@ -378,6 +369,7 @@ async function salvarLote() {
     }
 }
 
+    
     
     async function consultarMovimentacao() {
       const mes = document.getElementById('selectMesConsulta').value;
