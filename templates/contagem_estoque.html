@@ -121,11 +121,31 @@
       </div>
     </section>
 
-    <!-- SEÇÃO 2: CONSULTAR -->
+<!-- SEÇÃO 2: CONSULTAR -->
     <section id="sec-consultar" class="page-section">
       <div class="card p-4 mb-4">
-        <h4 class="text-primary mb-3">Consultar Movimentação</h4>
+        <h4 class="text-primary mb-3">Consultar Movimentação & Saldo</h4>
 
+        <!-- NOVO CARD COMPACTO PARA SALDO DE ESTOQUE -->
+        <div class="card bg-light p-3 mb-4 border">
+          <div class="row align-items-center g-3">
+            <div class="col-md-3">
+              <label class="form-label fw-bold m-0 text-dark">Saldo de Estoque:</label>
+              <input type="number" id="inputSaldoEstoque" class="form-control mt-1" placeholder="Ex: 1500" step="0.01">
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+              <button id="btnSalvarSaldo" class="btn btn-success fw-bold w-100" onclick="salvarSaldoEstoque()">
+                <i class="bi bi-save"></i> Salvar Saldo
+              </button>
+            </div>
+            <div class="col-md-6 text-md-end">
+              <small class="text-muted d-block fw-semibold">Última Atualização do Saldo:</small>
+              <span id="txtUltimaAtualizacaoSaldo" class="fw-bold text-primary">Carregando...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- FILTROS DE CONSULTA -->
         <div class="row mb-3 align-items-end">
           <div class="col-md-4">
             <label class="form-label fw-semibold">Mês:</label>
@@ -448,6 +468,84 @@ async function salvarLote() {
       alert(data.mensagem);
       if (data.sucesso) consultarMovimentacao();
     }
+
+
+
+
+
+    // Função para Salvar o Saldo de Estoque na aba SALDO_MM/YYYY
+async function salvarSaldoEstoque() {
+    const btn = document.getElementById('btnSalvarSaldo');
+    const valorSaldo = document.getElementById('inputSaldoEstoque').value;
+    const mes = document.getElementById('selectMesConsulta').value;
+    const ano = document.getElementById('selectAnoConsulta').value;
+    const dataConsulta = `${mes}/${ano}`;
+
+    if (!valorSaldo) {
+        alert('Por favor, informe o saldo de estoque!');
+        return;
+    }
+
+    if (btn) btn.disabled = true;
+
+    try {
+        const res = await fetch('/salvar_saldo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                data: dataConsulta,
+                saldo: valorSaldo
+            })
+        });
+
+        const dados = await res.json();
+        alert(dados.mensagem);
+
+        if (dados.sucesso) {
+            buscarSaldoAtual(dataConsulta);
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Erro ao salvar o saldo de estoque!');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+// Função para buscar o saldo e a última atualização gravada
+async function buscarSaldoAtual(dataConsulta) {
+    try {
+        const res = await fetch(`/obter_saldo?data=${encodeURIComponent(dataConsulta)}`);
+        const dados = await res.json();
+
+        if (dados.sucesso) {
+            document.getElementById('inputSaldoEstoque').value = dados.saldo || '';
+            document.getElementById('txtUltimaAtualizacaoSaldo').innerText = dados.ultima_atualizacao || 'Sem registo anterior';
+        } else {
+            document.getElementById('inputSaldoEstoque').value = '';
+            document.getElementById('txtUltimaAtualizacaoSaldo').innerText = 'Sem registo anterior';
+        }
+    } catch (e) {
+        console.error(e);
+        document.getElementById('txtUltimaAtualizacaoSaldo').innerText = 'Erro ao carregar';
+    }
+}
+
+// Atualiza a função consultarMovimentacao para carregar também o saldo ao filtrar
+const funcaoConsultarOriginal = consultarMovimentacao;
+consultarMovimentacao = function() {
+    const mes = document.getElementById('selectMesConsulta').value;
+    const ano = document.getElementById('selectAnoConsulta').value;
+    buscarSaldoAtual(`${mes}/${ano}`);
+    if (typeof funcaoConsultarOriginal === 'function') {
+        funcaoConsultarOriginal();
+    }
+};
+
+
+
+
+    
   </script>
 </body>
 </html>
