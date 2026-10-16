@@ -119,9 +119,13 @@
                 <th>Saldo Estoque</th>
                 <th>Quantidade Contada</th>
                 <th>Diferença</th>
-                <th style="width: 100px;">Ações</th>
+                <th style="width: 140px;">Ações</th>
               </tr>
             </thead>
+            <tbody id="corpoTabela">
+              <tr><td colspan="5" class="text-center text-muted">Nenhum item adicionado.</td></tr>
+            </tbody>
+          </table>
             <tbody id="corpoTabela">
               <tr><td colspan="5" class="text-center text-muted">Nenhum item adicionado.</td></tr>
             </tbody>
@@ -323,6 +327,7 @@ function adicionarItem() {
   inputProd.focus();
 }
 
+// Renderiza a tabela incluindo os botões Editar e Remover
 function renderTabela() {
   const corpo = document.getElementById('corpoTabela');
   corpo.innerHTML = '';
@@ -350,12 +355,47 @@ function renderTabela() {
       <td><span class="badge bg-secondary">${item.SALDO}</span></td>
       <td><strong>${item.QUANTIDADE}</strong></td>
       <td><span class="${corDifClass}">${difTexto}</span></td>
-      <td><button class="btn btn-danger btn-sm" onclick="removerItem(${index})">Remover</button></td>
+      <td>
+        <div class="d-flex gap-1">
+          <button class="btn btn-warning btn-sm fw-bold text-dark" onclick="editarItem(${index})" title="Editar item">Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="removerItem(${index})" title="Remover item">Remover</button>
+        </div>
+      </td>
     `;
     corpo.appendChild(tr);
   });
 }
 
+// Função para Editar um item da lista antes de salvar
+// Função para Editar um item da lista e recalcular a diferença automaticamente
+function editarItem(index) {
+  const item = listaLote[index];
+  if (!item) return;
+
+  // Preenche os campos do formulário
+  inputProd.value = item.CODIGO;
+  document.getElementById('inputQtd').value = item.QUANTIDADE;
+
+  // Atualiza o saldo global com o saldo salvo daquele item
+  saldoItemAtual = parseFloat(item.SALDO) || 0;
+  document.getElementById('txtSaldoItem').innerText = saldoItemAtual;
+
+  // Recarrega e recalcula a diferença no painel de cima com a quantidade atual
+  calcularDiferencaSaldo();
+
+  // Remove o item antigo da lista temporária
+  listaLote.splice(index, 1);
+  renderTabela();
+
+  // Foca no campo de quantidade para edição rápida
+  document.getElementById('inputQtd').focus();
+}
+
+// Função para Remover um item da lista
+function removerItem(index) {
+  listaLote.splice(index, 1);
+  renderTabela();
+}
 
 
 
