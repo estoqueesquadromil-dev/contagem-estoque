@@ -196,9 +196,7 @@
         </div>
 
         <!-- TABELA DE CONSULTA COM AS COLUNAS SOLICITADAS -->
-        <div class="table-responsive">
-          <table class="table table-bordered table-striped align-middle">
-            <thead class="table-dark">
+<thead class="table-dark">
               <tr>
                 <th style="width: 40px;"><input type="checkbox" id="checkTodos" onclick="toggleCheckTodos(this)"></th>
                 <th>Data</th>
@@ -207,7 +205,6 @@
                 <th>Quantidade Contada</th>
                 <th>Diferença</th>
                 <th>Tipo</th>
-                <th>Status</th>
                 <th>Inventario Feito</th>
                 <th>Ação</th>
               </tr>
@@ -663,10 +660,10 @@ function renderizarTabelaConsulta(itens) {
       <td><strong>${item.Quantidade}</strong></td>
       <td>${item.Diferenca !== undefined ? item.Diferenca : 0}</td>
       <td>${item.Tipo}</td>
-      <td><span class="badge ${item.Status === 'Sim' ? 'bg-success' : 'bg-warning text-dark'}">${item.Status}</span></td>
       <td><span class="badge ${item['Inventario Feito'] === 'Sim' ? 'bg-success' : 'bg-secondary'}">${item['Inventario Feito']}</span></td>
       <td><button class="btn btn-outline-danger btn-sm" onclick="excluirItem('${item.Data}', '${item.ID}')">Excluir</button></td>
     `;
+    
     corpo.appendChild(tr);
   });
   atualizarContador();
