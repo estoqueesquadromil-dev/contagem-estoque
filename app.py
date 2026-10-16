@@ -40,9 +40,10 @@ def carregar_base_produtos():
         produtos_cache = []
         codigos_validos_set = set()
         for _, row in df.iterrows():
+            # Lê a coluna PRODUTO (ou CODIGO) e DESCRICAO exatamente como na planilha contagem_semi_acabado
             codigo = str(row.get('PRODUTO', row.get('CODIGO', ''))).strip()
             descricao = str(row.get('DESCRICAO', '')).strip()
-            if codigo and codigo != 'nan':
+            if codigo and codigo.lower() != 'nan':
                 produtos_cache.append({'codigo': codigo, 'descricao': descricao})
                 codigos_validos_set.add(codigo)
                 
@@ -50,7 +51,7 @@ def carregar_base_produtos():
     except Exception as e:
         print(f"[ERRO] Falha ao carregar produtos: {e}")
 
-# Carrega a base ao iniciar
+# Carrega a base de produtos ao iniciar o servidor
 carregar_base_produtos()
 
 @app.route('/')
@@ -65,16 +66,17 @@ def buscar_produtos():
     
     resultados = []
     for p in produtos_cache:
+        # Busca por código ou por descrição
         if termo in p['codigo'].lower() or termo in p['descricao'].lower():
             resultados.append(p)
-            if len(resultados) >= 20:
+            if len(resultados) >= 50: # Retorna até 50 sugestões na lista
                 break
     return jsonify(resultados)
 
 @app.route('/salvar_lote', methods=['POST'])
 def salvar_lote():
     dados = request.json
-    data_lote = dados.get('data')
+    data_lote = dados.get('data') # Formato "MM/AAAA"
     itens = dados.get('itens', [])
 
     if not data_lote or not itens:
@@ -114,72 +116,10 @@ def salvar_lote():
 
         sheet_mov.append_rows(linhas_para_adicionar)
         
-        return jsonify({'sucesso': True, 'mensagem': f'Sucesso! Itens guardados na aba {data_lote} em MOVIMENTACAO_NOMUS.'})
+        return jsonify({'sucesso': True, 'mensagem': f'Sucesso! Itens salvos na aba {data_lote} na planilha {NOME_PLANILHA_MOVIMENTACAO}.'})
     
     except Exception as e:
         return jsonify({'sucesso': False, 'mensagem': f'Erro ao processar: {str(e)}'})
-
-@app.route('/atualizar_status_lote_por_id', methods=['POST'])
-def atualizar_status_lote_por_id():
-    try:
-        dados = request.get_json()
-        if not dados:
-            return jsonify({'sucesso': False, 'mensagem': 'Dados inválidos enviados.'}), 400
-            
-        data_consulta = str(dados.get('data', '')).strip()
-        ids_selecionados = [str(i).strip() for i in dados.get('ids', [])]
-        novo_status = str(dados.get('status', 'Não')).strip()
-        
-        if not data_consulta or not ids_selecionados:
-            return jsonify({'sucesso': False, 'mensagem': 'Nenhum item selecionado.'}), 400
-            
-        gc = conectar_google_sheets()
-        if not gc:
-            return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'}), 500
-            
-        planilha = gc.open(NOME_PLANILHA_MOVIMENTACAO)
-        
-        try:
-            aba = planilha.worksheet(data_consulta)
-        except Exception:
-            return jsonify({'sucesso': False, 'mensagem': f'Aba da data {data_consulta} não encontrada.'}), 400
-            
-        linhas_planilha = aba.get_all_values()
-        if not linhas_planilha or len(linhas_planilha) < 2:
-            return jsonify({'sucesso': False, 'mensagem': 'A planilha está vazia.'}), 400
-            
-        cabecalhos = [str(c).strip().upper() for c in linhas_planilha[0]]
-        
-        if "ID" not in cabecalhos or "STATUS" not in cabecalhos:
-            return jsonify({'sucesso': False, 'mensagem': 'Colunas ID ou STATUS não encontradas na planilha.'}), 400
-            
-        col_id_idx = cabecalhos.index("ID") + 1
-        col_status_idx = cabecalhos.index("STATUS") + 1
-        
-        cell_updates = []
-        contador = 0
-        
-        for idx_l, linha in enumerate(linhas_planilha):
-            if idx_l == 0:
-                continue
-                
-            id_celula = str(linha[col_id_idx - 1]).strip() if len(linha) >= col_id_idx else ""
-            
-            if id_celula in ids_selecionados:
-                cell_address = gspread.utils.rowcol_to_a1(idx_l + 1, col_status_idx)
-                cell_updates.append({
-                    'range': cell_address,
-                    'values': [[novo_status]]
-                })
-                contador += 1
-                
-        if cell_updates:
-            aba.batch_update(cell_updates)
-                
-        return jsonify({'sucesso': True, 'mensagem': f'Status atualizado com sucesso em {contador} item(ns)!'})
-        
-    except Exception as e:
-        return jsonify({'sucesso': False, 'mensagem': f'Erro interno no servidor: {str(e)}'}), 500
 
 @app.route('/consultar_movimentacao', methods=['GET'])
 def consultar_movimentacao():
@@ -284,6 +224,68 @@ def excluir_movimentacao():
 
     except Exception as e:
         return jsonify({'sucesso': False, 'mensagem': f'Erro ao excluir: {str(e)}'})
+
+@app.route('/atualizar_status_lote_por_id', methods=['POST'])
+def atualizar_status_lote_por_id():
+    try:
+        dados = request.get_json()
+        if not dados:
+            return jsonify({'sucesso': False, 'mensagem': 'Dados inválidos enviados.'}), 400
+            
+        data_consulta = str(dados.get('data', '')).strip()
+        ids_selecionados = [str(i).strip() for i in dados.get('ids', [])]
+        novo_status = str(dados.get('status', 'Não')).strip()
+        
+        if not data_consulta or not ids_selecionados:
+            return jsonify({'sucesso': False, 'mensagem': 'Nenhum item selecionado.'}), 400
+            
+        gc = conectar_google_sheets()
+        if not gc:
+            return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'}), 500
+            
+        planilha = gc.open(NOME_PLANILHA_MOVIMENTACAO)
+        
+        try:
+            aba = planilha.worksheet(data_consulta)
+        except Exception:
+            return jsonify({'sucesso': False, 'mensagem': f'Aba da data {data_consulta} não encontrada.'}), 400
+            
+        linhas_planilha = aba.get_all_values()
+        if not linhas_planilha or len(linhas_planilha) < 2:
+            return jsonify({'sucesso': False, 'mensagem': 'A planilha está vazia.'}), 400
+            
+        cabecalhos = [str(c).strip().upper() for c in linhas_planilha[0]]
+        
+        if "ID" not in cabecalhos or "STATUS" not in cabecalhos:
+            return jsonify({'sucesso': False, 'mensagem': 'Colunas ID ou STATUS não encontradas na planilha.'}), 400
+            
+        col_id_idx = cabecalhos.index("ID") + 1
+        col_status_idx = cabecalhos.index("STATUS") + 1
+        
+        cell_updates = []
+        contador = 0
+        
+        for idx_l, linha in enumerate(linhas_planilha):
+            if idx_l == 0:
+                continue
+                
+            id_celula = str(linha[col_id_idx - 1]).strip() if len(linha) >= col_id_idx else ""
+            
+            if id_celula in ids_selecionados:
+                cell_address = gspread.utils.rowcol_to_a1(idx_l + 1, col_status_idx)
+                cell_updates.append({
+                    'range': cell_address,
+                    'values': [[novo_status]]
+                })
+                contador += 1
+                
+        if cell_updates:
+            aba.batch_update(cell_updates)
+                
+        return jsonify({'sucesso': True, 'mensagem': f'Status atualizado com sucesso em {contador} item(ns)!'})
+        
+    except Exception as e:
+        return jsonify({'sucesso': False, 'mensagem': f'Erro interno no servidor: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
