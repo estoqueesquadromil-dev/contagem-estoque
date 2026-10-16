@@ -33,28 +33,30 @@ def carregar_base_produtos():
             print("[ERRO] Não foi possível conectar ao Google Sheets.")
             return
         
-        planilha = gc.open(NOME_PLANILHA)
+        planilha = gc.open_by_key(PLANILHA_ID)
         sheet = planilha.worksheet('dados')
         dados = sheet.get_all_records()
         
         produtos_cache = []
         codigos_validos_set = set()
+        codigos_vistos = set() # Evita duplicados no autocomplete
         
         for row in dados:
-            # Procura chaves independentemente de maiúsculas/minúsculas
             codigo = str(row.get('PRODUTO') or row.get('Produto') or row.get('CODIGO') or row.get('Codigo') or '').strip()
             descricao = str(row.get('DESCRICAO') or row.get('Descrição') or row.get('descricao') or '').strip()
             
             if codigo and codigo.lower() != 'nan':
-                produtos_cache.append({'codigo': codigo, 'descricao': descricao})
-                codigos_validos_set.add(codigo)
+                cod_upper = codigo.upper()
+                if cod_upper not in codigos_vistos:
+                    codigos_vistos.add(cod_upper)
+                    produtos_cache.append({'codigo': codigo, 'descricao': descricao})
+                    codigos_validos_set.add(codigo)
                 
-        print(f"[INFO] {len(produtos_cache)} produtos carregados com sucesso para o cache da contagem!")
+        print(f"[INFO] {len(produtos_cache)} produtos únicos carregados para o cache!")
     except Exception as e:
         print(f"[ERRO CRITICO] Falha ao carregar produtos: {e}")
 
-# Carrega os produtos ao iniciar
-carregar_base_produtos()
+
 
 @app.route('/')
 def index_contagem():
@@ -203,25 +205,3 @@ if __name__ == '__main__':
 
 
 
-
-@app.route('/teste_planilha', methods=['GET'])
-def teste_planilha():
-    try:
-        gc = conectar_google_sheets()
-        if not gc:
-            return "ERRO: Falha ao autenticar com o Google Sheets (verifique as credenciais no Render)."
-        
-        # Tenta abrir a planilha 'contagem_semi_acabado'
-        planilha = gc.open(NOME_PLANILHA)
-        
-        # Tenta abrir a aba 'dados'
-        sheet = planilha.worksheet('dados')
-        dados = sheet.get_all_records()
-        
-        if not dados:
-            return "AVISO: A aba 'dados' foi encontrada na planilha, mas não tem registos!"
-            
-        return f"SUCESSO! Total de linhas na aba 'dados': {len(dados)}<br><br>Exemplo dos primeiros dados:<br>{str(dados[:5])}"
-    except Exception as e:
-        # Exibe o tipo do erro e a mensagem exata
-        return f"ERRO CRITICO AO LER A PLANILHA ({type(e).__name__}): {str(e)}<br><pre>{traceback.format_exc()}</pre>"
