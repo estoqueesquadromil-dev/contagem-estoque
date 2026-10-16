@@ -368,3 +368,40 @@ def obter_saldo():
 
     except Exception as e:
         return jsonify({"sucesso": False, "mensagem": str(e)}), 500
+
+
+# --- ROTA PARA CONSULTAR SALDO DE UM ITEM ESPECÍFICO ---
+@app.route('/obter_saldo_item', methods=['GET'])
+def obter_saldo_item():
+    try:
+        codigo_busca = str(request.args.get('codigo', '')).strip().upper()
+        data_mes_ano = request.args.get('data', '') # Ex: "10/2026"
+        nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
+
+        if not codigo_busca or not data_mes_ano:
+            return jsonify({'sucesso': False, 'saldo': 0})
+
+        gc = conectar_google_sheets()
+        planilha = gc.open(NOME_PLANILHA)
+
+        try:
+            aba = planilha.worksheet(nome_aba)
+            registros = aba.get_all_values()
+            
+            # Procura pelo código na coluna CODIGO (primeira coluna)
+            for linha in registros[1:]:  # Pula cabeçalho
+                if len(linha) >= 2:
+                    cod_na_planilha = str(linha[0]).strip().upper()
+                    if cod_na_planilha == codigo_busca:
+                        return jsonify({
+                            'sucesso': True,
+                            'saldo': linha[1]
+                        })
+        except Exception:
+            pass
+
+        return jsonify({'sucesso': True, 'saldo': 0})
+
+    except Exception as e:
+        print(f"Erro ao obter saldo do item: {e}")
+        return jsonify({'sucesso': False, 'saldo': 0})
