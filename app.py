@@ -277,19 +277,18 @@ def salvar_saldo():
     try:
         dados = request.json
         data_mes_ano = dados.get('data') # Ex: "10/2026"
-        texto_colado = dados.get('texto', '') # Texto colado do Excel
+        texto_colado = dados.get('texto', '')
 
+        # Cria o nome da aba automaticamente (ex: SALDO_10_2026)
         nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
         agora = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
 
-        # Processar as linhas coladas (separando código e saldo por TAB ou espaço)
         linhas_processadas = []
         for linha in texto_colado.strip().split('\n'):
             linha_limpa = linha.strip()
             if not linha_limpa:
                 continue
             
-            # Divide por TAB (\t) ou múltiplos espaços
             partes = re.split(r'[\t\s]+', linha_limpa)
             if len(partes) >= 2:
                 codigo = partes[0]
@@ -301,16 +300,17 @@ def salvar_saldo():
         if not linhas_processadas:
             return jsonify({"sucesso": False, "mensagem": "Nenhum dado válido encontrado no texto colado!"})
 
-        planilha = obter_planilha_sheets()
+        # >>> USE AQUI A VARIÁVEL/FUNÇÃO QUE O SEU APP.PY JÁ USA PARA ACEDER À PLANILHA <<<
+        # (Por exemplo: sheet, client.open("contagem_semi_acabado"), etc.)
+        planilha = sheet # Ajuste para o nome que já funciona nas outras rotas do seu app.py
 
-        # Tenta pegar a aba, se não existir cria uma com o cabeçalho correto
+        # O sistema verifica se a aba existe; se não existir, ele cria automaticamente!
         try:
             aba = planilha.worksheet(nome_aba)
-            aba.clear() # Limpa o saldo antigo para sobrescrever o novo
+            aba.clear() 
         except Exception:
             aba = planilha.add_worksheet(title=nome_aba, rows="1000", cols="3")
 
-        # Escreve o Cabeçalho e todas as linhas
         matriz_final = [["CODIGO", "SALDO", "ULTIMA ATUALIZACAO"]] + linhas_processadas
         aba.update('A1', matriz_final)
 
@@ -330,18 +330,18 @@ def obter_saldo():
         data_mes_ano = request.args.get('data')
         nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
 
-        planilha = obter_planilha_sheets()
+        # >>> MESMO AQUI: Use a mesma variável/função de conexão do seu app.py <<<
+        planilha = sheet 
 
         try:
             aba = planilha.worksheet(nome_aba)
             registros = aba.get_all_values()
             
-            # Se a aba tiver dados além do cabeçalho
             if len(registros) > 1:
                 linhas_texto = []
                 ultima_atualizacao = registros[1][2] if len(registros[1]) >= 3 else ''
                 
-                for r in registros[1:]: # Ignora cabeçalho
+                for r in registros[1:]: 
                     if len(r) >= 2:
                         linhas_texto.append(f"{r[0]}\t{r[1]}")
                 
