@@ -260,3 +260,73 @@ def teste_direto_planilha():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+
+
+
+from datetime import datetime
+
+@app.route('/salvar_saldo', methods=['POST'])
+def salvar_saldo():
+    try:
+        dados = request.json
+        data_mes_ano = dados.get('data') # Ex: "10/2026"
+        saldo_valor = dados.get('saldo') # Ex: "1500"
+
+        # Nome da aba formatado: SALDO_10_2026
+        nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
+        
+        # Pega a data e hora atual do servidor
+        agora = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+
+        # Conecta à planilha (usando sua função existente de abrir a planilha)
+        planilha = obter_planilha_sheets() 
+
+        # Tenta pegar a aba, se não existir, cria uma nova
+        try:
+            aba = planilha.worksheet(nome_aba)
+        except Exception:
+            aba = planilha.add_worksheet(title=nome_aba, rows="100", cols="3")
+            aba.append_row(["Data/Hora Atualização", "Saldo de Estoque"])
+
+        # Registra a nova atualização na aba de Saldo
+        aba.append_row([agora, saldo_valor])
+
+        return jsonify({"sucesso": True, "mensagem": f"Saldo gravado na aba {nome_aba} com sucesso!"})
+
+    except Exception as e:
+        print(f"Erro ao salvar saldo: {e}")
+        return jsonify({"sucesso": False, "mensagem": f"Erro interno: {str(e)}"}), 500
+
+
+@app.route('/obter_saldo', methods=['GET'])
+def obter_saldo():
+    try:
+        data_mes_ano = request.args.get('data') # Ex: "10/2026"
+        nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
+
+        planilha = obter_planilha_sheets()
+
+        try:
+            aba = planilha.worksheet(nome_aba)
+            registros = aba.get_all_values()
+            
+            # Se tiver dados cadastrados (desconsiderando o cabeçalho)
+            if len(registros) > 1:
+                ultimo_registro = registros[-1] # Pega a última linha salva
+                return jsonify({
+                    "sucesso": True,
+                    "ultima_atualizacao": ultimo_registro[0],
+                    "saldo": ultimo_registro[1]
+                })
+        except Exception:
+            pass
+
+        return jsonify({
+            "sucesso": True,
+            "ultima_atualizacao": "Sem registo anterior",
+            "saldo": ""
+        })
+
+    except Exception as e:
+        return jsonify({"sucesso": False, "mensagem": str(e)}), 500
