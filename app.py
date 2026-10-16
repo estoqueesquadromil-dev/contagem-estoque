@@ -5,6 +5,13 @@ import time
 import gspread
 from flask import Flask, render_template, request, jsonify
 from google.oauth2.service_account import Credentials
+from datetime import datetime
+import re
+from flask import request, jsonify
+
+
+
+
 
 app = Flask(__name__)
 
@@ -264,35 +271,53 @@ if __name__ == '__main__':
 
 
 
-from datetime import datetime
 
 @app.route('/salvar_saldo', methods=['POST'])
 def salvar_saldo():
     try:
         dados = request.json
         data_mes_ano = dados.get('data') # Ex: "10/2026"
-        saldo_valor = dados.get('saldo') # Ex: "1500"
+        texto_colado = dados.get('texto', '') # Texto colado do Excel
 
-        # Nome da aba formatado: SALDO_10_2026
         nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
-        
-        # Pega a data e hora atual do servidor
         agora = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
 
-        # Conecta à planilha (usando sua função existente de abrir a planilha)
-        planilha = obter_planilha_sheets() 
+        # Processar as linhas coladas (separando código e saldo por TAB ou espaço)
+        linhas_processadas = []
+        for linha in texto_colado.strip().split('\n'):
+            linha_limpa = linha.strip()
+            if not linha_limpa:
+                continue
+            
+            # Divide por TAB (\t) ou múltiplos espaços
+            partes = re.split(r'[\t\s]+', linha_limpa)
+            if len(partes) >= 2:
+                codigo = partes[0]
+                saldo = partes[1]
+                linhas_processadas.append([codigo, saldo, agora])
+            elif len(partes) == 1:
+                linhas_processadas.append([partes[0], '0', agora])
 
-        # Tenta pegar a aba, se não existir, cria uma nova
+        if not linhas_processadas:
+            return jsonify({"sucesso": False, "mensagem": "Nenhum dado válido encontrado no texto colado!"})
+
+        planilha = obter_planilha_sheets()
+
+        # Tenta pegar a aba, se não existir cria uma com o cabeçalho correto
         try:
             aba = planilha.worksheet(nome_aba)
+            aba.clear() # Limpa o saldo antigo para sobrescrever o novo
         except Exception:
-            aba = planilha.add_worksheet(title=nome_aba, rows="100", cols="3")
-            aba.append_row(["Data/Hora Atualização", "Saldo de Estoque"])
+            aba = planilha.add_worksheet(title=nome_aba, rows="1000", cols="3")
 
-        # Registra a nova atualização na aba de Saldo
-        aba.append_row([agora, saldo_valor])
+        # Escreve o Cabeçalho e todas as linhas
+        matriz_final = [["CODIGO", "SALDO", "ULTIMA ATUALIZACAO"]] + linhas_processadas
+        aba.update('A1', matriz_final)
 
-        return jsonify({"sucesso": True, "mensagem": f"Saldo gravado na aba {nome_aba} com sucesso!"})
+        return jsonify({
+            "sucesso": True, 
+            "mensagem": f"Saldo de {len(linhas_processadas)} item(ns) gravado na aba {nome_aba} com sucesso!"
+        })
 
     except Exception as e:
         print(f"Erro ao salvar saldo: {e}")
@@ -302,7 +327,7 @@ def salvar_saldo():
 @app.route('/obter_saldo', methods=['GET'])
 def obter_saldo():
     try:
-        data_mes_ano = request.args.get('data') # Ex: "10/2026"
+        data_mes_ano = request.args.get('data')
         nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
 
         planilha = obter_planilha_sheets()
@@ -311,21 +336,27 @@ def obter_saldo():
             aba = planilha.worksheet(nome_aba)
             registros = aba.get_all_values()
             
-            # Se tiver dados cadastrados (desconsiderando o cabeçalho)
+            # Se a aba tiver dados além do cabeçalho
             if len(registros) > 1:
-                ultimo_registro = registros[-1] # Pega a última linha salva
+                linhas_texto = []
+                ultima_atualizacao = registros[1][2] if len(registros[1]) >= 3 else ''
+                
+                for r in registros[1:]: # Ignora cabeçalho
+                    if len(r) >= 2:
+                        linhas_texto.append(f"{r[0]}\t{r[1]}")
+                
                 return jsonify({
                     "sucesso": True,
-                    "ultima_atualizacao": ultimo_registro[0],
-                    "saldo": ultimo_registro[1]
+                    "texto": "\n".join(linhas_texto),
+                    "ultima_atualizacao": ultima_atualizacao
                 })
         except Exception:
             pass
 
         return jsonify({
             "sucesso": True,
-            "ultima_atualizacao": "Sem registo anterior",
-            "saldo": ""
+            "texto": "",
+            "ultima_atualizacao": "Nenhuma atualização salva"
         })
 
     except Exception as e:
