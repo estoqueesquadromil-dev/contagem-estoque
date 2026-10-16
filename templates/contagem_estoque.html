@@ -124,23 +124,24 @@
 <!-- SEÇÃO 2: CONSULTAR -->
     <section id="sec-consultar" class="page-section">
       <div class="card p-4 mb-4">
-        <h4 class="text-primary mb-3">Consultar Movimentação & Saldo</h4>
+        <h4 class="text-primary mb-3">Consultar Movimentação & Saldo de Estoque</h4>
 
-        <!-- NOVO CARD COMPACTO PARA SALDO DE ESTOQUE -->
+        <!-- BLOCÃO PARA COLAR SALDO DE ESTOQUE DA TABELA -->
         <div class="card bg-light p-3 mb-4 border">
-          <div class="row align-items-center g-3">
-            <div class="col-md-3">
-              <label class="form-label fw-bold m-0 text-dark">Saldo de Estoque:</label>
-              <input type="number" id="inputSaldoEstoque" class="form-control mt-1" placeholder="Ex: 1500" step="0.01">
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label class="form-label fw-bold text-dark m-0">Colar Saldo de Estoque (Código e Quantidade):</label>
+              <small class="text-muted d-block mb-2">Cole as colunas do Excel/Sheets diretamente aqui (ex: UP075-1586 4)</small>
+              <textarea id="txtSaldoEstoque" class="form-control" rows="5" placeholder="UP075-1586	4&#10;UP075-1786	1&#10;UP075-1986	2"></textarea>
             </div>
-            <div class="col-md-3 d-flex align-items-end">
-              <button id="btnSalvarSaldo" class="btn btn-success fw-bold w-100" onclick="salvarSaldoEstoque()">
-                <i class="bi bi-save"></i> Salvar Saldo
+            <div class="col-md-4 d-flex flex-column justify-content-between">
+              <div>
+                <small class="text-muted d-block fw-semibold">Última Atualização nesta Aba:</small>
+                <span id="txtUltimaAtualizacaoSaldo" class="fw-bold text-primary d-block mb-3">Carregando...</span>
+              </div>
+              <button id="btnSalvarSaldo" class="btn btn-success btn-lg fw-bold w-100" onclick="salvarSaldoEstoque()">
+                <i class="bi bi-save"></i> Salvar Saldo de Estoque
               </button>
-            </div>
-            <div class="col-md-6 text-md-end">
-              <small class="text-muted d-block fw-semibold">Última Atualização do Saldo:</small>
-              <span id="txtUltimaAtualizacaoSaldo" class="fw-bold text-primary">Carregando...</span>
             </div>
           </div>
         </div>
@@ -473,16 +474,16 @@ async function salvarLote() {
 
 
 
-    // Função para Salvar o Saldo de Estoque na aba SALDO_MM/YYYY
+// Função para ler o texto colado e enviar para o backend
 async function salvarSaldoEstoque() {
     const btn = document.getElementById('btnSalvarSaldo');
-    const valorSaldo = document.getElementById('inputSaldoEstoque').value;
+    const textoColado = document.getElementById('txtSaldoEstoque').value.trim();
     const mes = document.getElementById('selectMesConsulta').value;
     const ano = document.getElementById('selectAnoConsulta').value;
     const dataConsulta = `${mes}/${ano}`;
 
-    if (!valorSaldo) {
-        alert('Por favor, informe o saldo de estoque!');
+    if (!textoColado) {
+        alert('Cole os dados de Código e Saldo na caixa de texto antes de salvar!');
         return;
     }
 
@@ -494,7 +495,7 @@ async function salvarSaldoEstoque() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 data: dataConsulta,
-                saldo: valorSaldo
+                texto: textoColado
             })
         });
 
@@ -506,32 +507,32 @@ async function salvarSaldoEstoque() {
         }
     } catch (e) {
         console.error(e);
-        alert('Erro ao salvar o saldo de estoque!');
+        alert('Erro de conexão ao salvar o saldo de estoque!');
     } finally {
         if (btn) btn.disabled = false;
     }
 }
 
-// Função para buscar o saldo e a última atualização gravada
+// Carrega o saldo atual da aba correspondente ao filtro de Mês e Ano
 async function buscarSaldoAtual(dataConsulta) {
     try {
         const res = await fetch(`/obter_saldo?data=${encodeURIComponent(dataConsulta)}`);
         const dados = await res.json();
 
         if (dados.sucesso) {
-            document.getElementById('inputSaldoEstoque').value = dados.saldo || '';
-            document.getElementById('txtUltimaAtualizacaoSaldo').innerText = dados.ultima_atualizacao || 'Sem registo anterior';
+            document.getElementById('txtSaldoEstoque').value = dados.texto || '';
+            document.getElementById('txtUltimaAtualizacaoSaldo').innerText = dados.ultima_atualizacao || 'Nenhuma atualização salva';
         } else {
-            document.getElementById('inputSaldoEstoque').value = '';
-            document.getElementById('txtUltimaAtualizacaoSaldo').innerText = 'Sem registo anterior';
+            document.getElementById('txtSaldoEstoque').value = '';
+            document.getElementById('txtUltimaAtualizacaoSaldo').innerText = 'Nenhuma atualização salva';
         }
     } catch (e) {
         console.error(e);
-        document.getElementById('txtUltimaAtualizacaoSaldo').innerText = 'Erro ao carregar';
+        document.getElementById('txtUltimaAtualizacaoSaldo').innerText = 'Erro ao carregar saldo';
     }
 }
 
-// Atualiza a função consultarMovimentacao para carregar também o saldo ao filtrar
+// Atualiza a busca de saldo ao trocar/filtrar
 const funcaoConsultarOriginal = consultarMovimentacao;
 consultarMovimentacao = function() {
     const mes = document.getElementById('selectMesConsulta').value;
@@ -541,6 +542,12 @@ consultarMovimentacao = function() {
         funcaoConsultarOriginal();
     }
 };
+
+
+
+
+
+
 
 
 
