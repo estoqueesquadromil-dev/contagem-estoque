@@ -5,18 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sistema de Contagem de Estoque</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
   <style>
-    body {
-      background-color: #f8f9fa;
-      padding: 20px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-    .card-main {
-      background: #ffffff;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      padding: 25px;
-    }
+    body { background-color: #f8f9fa; margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .top-navbar { height: 60px; background-color: #212529; color: white; display: flex; align-items: center; padding: 0 20px; position: fixed; top: 0; left: 0; right: 0; z-index: 1000; }
+    .btn-toggle { background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; margin-right: 15px; }
+    .sidebar { width: 250px; position: fixed; top: 60px; bottom: 0; left: 0; background-color: #343a40; padding-top: 20px; transition: all 0.3s; z-index: 999; }
+    .sidebar.collapsed { left: -250px; }
+    .sidebar a { padding: 12px 20px; text-decoration: none; font-size: 1rem; color: #adb5bd; display: flex; align-items: center; gap: 10px; }
+    .sidebar a:hover, .sidebar a.active { color: #fff; background-color: #0d6efd; }
+    .main-content { margin-top: 60px; margin-left: 250px; padding: 25px; transition: all 0.3s; }
+    .main-content.expanded { margin-left: 0; }
+    .card { border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; }
+    .page-section { display: none; }
+    .page-section.active { display: block; }
+    
+    /* CAIXA DE SUGESTÕES IGUAL AO SISTEMA DE BAIXA */
     .suggestion-box {
       position: absolute;
       top: 100%;
@@ -32,7 +36,7 @@
       display: none;
     }
     .suggestion-item {
-      padding: 8px 12px;
+      padding: 10px 14px;
       cursor: pointer;
       border-bottom: 1px solid #f1f1f1;
       font-size: 0.9rem;
@@ -41,137 +45,110 @@
       background-color: #0d6efd;
       color: #ffffff;
     }
-    .nav-pills .nav-link.active {
-      background-color: #0d6efd;
-    }
   </style>
 </head>
 <body>
 
-<div class="container-fluid" style="max-width: 1200px;">
-  <div class="card-main">
-    <h3 class="text-primary fw-bold mb-4">Sistema de Contagem de Estoque</h3>
+  <header class="top-navbar">
+    <button class="btn-toggle" onclick="toggleSidebar()"><i class="bi bi-list"></i></button>
+    <h5 class="m-0 fw-bold">Sistema de Contagem de Estoque</h5>
+  </header>
 
-    <!-- NAVEGAÇÃO -->
-    <ul class="nav nav-pills mb-4" id="pills-tab" role="tablist">
-      <li class="nav-item">
-        <button class="nav-link active fw-bold" id="tab-contagem" data-bs-toggle="pill" data-bs-target="#sec-contagem" type="button">Contagem</button>
-      </li>
-      <li class="nav-item">
-        <button class="nav-link fw-bold" id="tab-consultar" data-bs-toggle="pill" data-bs-target="#sec-consultar" type="button" onclick="consultarMovimentacao()">Consultar Contagens</button>
-      </li>
-    </ul>
+  <nav class="sidebar" id="sidebar">
+    <a href="#" class="nav-link-item active" onclick="mostrarSecao('lancar', this)"><i class="bi bi-plus-circle"></i> Nova Contagem</a>
+    <a href="#" class="nav-link-item" onclick="mostrarSecao('consultar', this)"><i class="bi bi-journal-text"></i> Consultar Lotes</a>
+  </nav>
 
-    <div class="tab-content" id="pills-tabContent">
-      
-      <!-- SEÇÃO 1: DIGITAÇÃO DA CONTAGEM -->
-      <div class="tab-pane fade show active" id="sec-contagem" role="tabpanel">
-        
-        <div class="row g-3 mb-3">
-          <div class="col-md-3">
-            <label class="form-label fw-semibold">Mês:</label>
+  <main class="main-content" id="mainContent">
+    
+    <!-- SEÇÃO 1: LANÇAR -->
+    <section id="sec-lancar" class="page-section active">
+      <div class="card p-4 mb-4">
+        <h4 class="text-primary mb-3">Lançar Nova Contagem</h4>
+
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Mês da Contagem:</label>
             <select id="selectMes" class="form-select">
-              <option value="01">01 - Janeiro</option>
-              <option value="02">02 - Fevereiro</option>
-              <option value="03">03 - Março</option>
-              <option value="04">04 - Abril</option>
-              <option value="05">05 - Maio</option>
-              <option value="06">06 - Junho</option>
-              <option value="07">07 - Julho</option>
-              <option value="08">08 - Agosto</option>
-              <option value="09">09 - Setembro</option>
-              <option value="10" selected>10 - Outubro</option>
-              <option value="11">11 - Novembro</option>
-              <option value="12">12 - Dezembro</option>
+              <option value="01">01 - Janeiro</option><option value="02">02 - Fevereiro</option><option value="03">03 - Março</option>
+              <option value="04">04 - Abril</option><option value="05">05 - Maio</option><option value="06">06 - Junho</option>
+              <option value="07">07 - Julho</option><option value="08">08 - Agosto</option><option value="09">09 - Setembro</option>
+              <option value="10" selected>10 - Outubro</option><option value="11">11 - Novembro</option><option value="12">12 - Dezembro</option>
             </select>
           </div>
-
-          <div class="col-md-3">
+          <div class="col-md-6">
             <label class="form-label fw-semibold">Ano:</label>
             <select id="selectAno" class="form-select">
-              <option value="2026" selected>2026</option>
-              <option value="2027">2027</option>
-              <option value="2028">2028</option>
+              <option value="2026" selected>2026</option><option value="2027">2027</option><option value="2028">2028</option>
             </select>
           </div>
         </div>
 
-        <div class="row g-2 mb-4 position-relative">
+        <div class="row g-2 mb-3">
           <div class="col-md-6 position-relative">
-            <label for="inputProduto" class="form-label fw-semibold">Código do Produto:</label>
+            <label class="form-label fw-semibold">Código do Produto:</label>
             <input type="text" id="inputProduto" class="form-control" placeholder="Digite o código ou descrição..." autocomplete="off">
-            <!-- CAIXA DE SUGESTÕES ESTILO SISTEMA DE BAIXA -->
             <div id="caixaSugestoes" class="suggestion-box"></div>
           </div>
-
-          <div class="col-md-2">
-            <label for="inputQtd" class="form-label fw-semibold">Quantidade:</label>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">Quantidade:</label>
             <input type="number" id="inputQtd" class="form-control" value="1" min="1">
           </div>
-
-          <div class="col-md-4 d-flex align-items-end">
-            <button class="btn btn-primary w-100 fw-bold" onclick="adicionarItem()"><i class="bi bi-plus-lg"></i> Adicionar</button>
-          </div>
-        </div>
-
-        <!-- TABELA DE ITENS ADICIONADOS -->
-        <div class="table-responsive mb-3">
-          <table class="table table-bordered align-middle">
-            <thead class="table-light">
-              <tr>
-                <th>Código</th>
-                <th>Descrição</th>
-                <th style="width: 120px;">Quantidade</th>
-                <th style="width: 90px;">Ação</th>
-              </tr>
-            </thead>
-            <tbody id="tabelaContagemCorpo">
-              <tr><td colspan="4" class="text-center text-muted">Nenhum item adicionado ainda.</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="d-flex justify-content-end">
-          <button class="btn btn-success btn-lg fw-bold" onclick="salvarContagem()">Salvar Contagem na Planilha</button>
-        </div>
-
-      </div>
-
-      <!-- SEÇÃO 2: CONSULTA -->
-      <div class="tab-pane fade" id="sec-consultar" role="tabpanel">
-        <div class="row g-3 mb-3 align-items-end">
-          <div class="col-md-3">
-            <label class="form-label fw-semibold">Mês:</label>
-            <select id="selectMesConsulta" class="form-select">
-              <option value="01">01 - Janeiro</option>
-              <option value="02">02 - Fevereiro</option>
-              <option value="03">03 - Março</option>
-              <option value="04">04 - Abril</option>
-              <option value="05">05 - Maio</option>
-              <option value="06">06 - Junho</option>
-              <option value="07">07 - Julho</option>
-              <option value="08">08 - Agosto</option>
-              <option value="09">09 - Setembro</option>
-              <option value="10" selected>10 - Outubro</option>
-              <option value="11">11 - Novembro</option>
-              <option value="12">12 - Dezembro</option>
-            </select>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label fw-semibold">Ano:</label>
-            <select id="selectAnoConsulta" class="form-select">
-              <option value="2026" selected>2026</option>
-              <option value="2027">2027</option>
-              <option value="2028">2028</option>
-            </select>
-          </div>
-          <div class="col-md-3">
-            <button class="btn btn-secondary w-100 fw-bold" onclick="consultarMovimentacao()">Consultar</button>
+          <div class="col-md-3 d-flex align-items-end">
+            <button class="btn btn-success w-100 fw-bold" onclick="adicionarItem()"><i class="bi bi-plus-lg"></i> Adicionar</button>
           </div>
         </div>
 
         <div class="table-responsive">
-          <table class="table table-striped table-bordered align-middle">
+          <table class="table table-striped align-middle">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Descrição</th>
+                <th>Quantidade</th>
+                <th style="width: 100px;">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="corpoTabela">
+              <tr><td colspan="4" class="text-center text-muted">Nenhum item adicionado.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="d-flex justify-content-end mt-3">
+          <button class="btn btn-primary btn-lg fw-bold" onclick="salvarLote()">Salvar Contagem no Sheets</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SEÇÃO 2: CONSULTAR -->
+    <section id="sec-consultar" class="page-section">
+      <div class="card p-4 mb-4">
+        <h4 class="text-primary mb-3">Consultar Movimentação</h4>
+
+        <div class="row mb-3 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Mês:</label>
+            <select id="selectMesConsulta" class="form-select">
+              <option value="01">01 - Janeiro</option><option value="02">02 - Fevereiro</option><option value="03">03 - Março</option>
+              <option value="04">04 - Abril</option><option value="05">05 - Maio</option><option value="06">06 - Junho</option>
+              <option value="07">07 - Julho</option><option value="08">08 - Agosto</option><option value="09">09 - Setembro</option>
+              <option value="10" selected>10 - Outubro</option><option value="11">11 - Novembro</option><option value="12">12 - Dezembro</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Ano:</label>
+            <select id="selectAnoConsulta" class="form-select">
+              <option value="2026" selected>2026</option><option value="2027">2027</option><option value="2028">2028</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <button class="btn btn-secondary w-100 fw-bold" onclick="consultarMovimentacao()">Filtrar / Recarregar</button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-bordered align-middle">
             <thead class="table-dark">
               <tr>
                 <th style="width: 40px;"><input type="checkbox" id="checkTodos" onclick="toggleCheckTodos(this)"></th>
@@ -180,210 +157,209 @@
                 <th>Quantidade</th>
                 <th>Tipo</th>
                 <th>Status</th>
-                <th style="width: 80px;">Ação</th>
+                <th>Ação</th>
               </tr>
             </thead>
-            <tbody id="tabelaConsultaCorpo">
-              <tr><td colspan="7" class="text-center text-muted">Selecione Mês/Ano e clique em Consultar.</td></tr>
+            <tbody id="corpoTabelaConsulta">
+              <tr><td colspan="7" class="text-center text-muted">Nenhum registo carregado.</td></tr>
             </tbody>
           </table>
         </div>
 
         <div class="d-flex justify-content-between align-items-center mt-3">
-          <span id="infoItensSelecionados" class="text-muted font-weight-bold">0 itens selecionados</span>
+          <span id="infoItensSelecionados" class="text-muted">0 itens selecionados</span>
           <div>
             <button class="btn btn-warning me-2 fw-bold" onclick="atualizarStatusLote('Sim')">Marcar como Processado (Sim)</button>
             <button class="btn btn-outline-secondary fw-bold" onclick="atualizarStatusLote('Não')">Marcar como Pendente (Não)</button>
           </div>
         </div>
-
       </div>
+    </section>
 
-    </div>
-  </div>
-</div>
+  </main>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-  let produtoSelecionado = null;
-  let itensContagem = [];
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    let produtoSelecionado = null;
+    let listaLote = [];
 
-  const inputProd = document.getElementById('inputProduto');
-  const caixaSugestoes = document.getElementById('caixaSugestoes');
-
-  // EVENTO DE DIGITAÇÃO PARA MOSTRAR SUGESTÕES ESTILO SISTEMA DE BAIXA
-  inputProd.addEventListener('input', async function() {
-    const termo = this.value.trim();
-    caixaSugestoes.innerHTML = '';
-    
-    if (termo.length === 0) {
-      caixaSugestoes.style.display = 'none';
-      produtoSelecionado = null;
-      return;
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('collapsed');
+      document.getElementById('mainContent').classList.toggle('expanded');
     }
 
-    try {
-      const res = await fetch(`/buscar_produtos?termo=${encodeURIComponent(termo)}`);
-      const produtos = await res.json();
+    function mostrarSecao(secao, elem) {
+      document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
+      if (secao === 'lancar') {
+        document.getElementById('sec-lancar').classList.add('active');
+      } else {
+        document.getElementById('sec-consultar').classList.add('active');
+        consultarMovimentacao();
+      }
+      elem.classList.add('active');
+    }
 
-      if (produtos.length === 0) {
+    // AUTOCOMPLETE IDÊNTICO AO SISTEMA DE BAIXA
+    const inputProd = document.getElementById('inputProduto');
+    const caixaSugestoes = document.getElementById('caixaSugestoes');
+
+    inputProd.addEventListener('input', async function() {
+      const termo = this.value.trim();
+      caixaSugestoes.innerHTML = '';
+      if (termo.length === 0) {
         caixaSugestoes.style.display = 'none';
+        produtoSelecionado = null;
         return;
       }
 
-      produtos.forEach(p => {
-        const itemDiv = document.createElement('div');
-        itemDiv.className = 'suggestion-item';
-        // Formato exato do Sistema de Baixa: CODIGO - DESCRICAO
-        itemDiv.textContent = `${p.codigo} - ${p.descricao}`;
-        
-        itemDiv.addEventListener('click', function() {
-          inputProd.value = `${p.codigo} - ${p.descricao}`;
-          produtoSelecionado = p;
+      try {
+        const res = await fetch(`/buscar_produtos?termo=${encodeURIComponent(termo)}`);
+        const produtos = await res.json();
+
+        if (produtos.length === 0) {
           caixaSugestoes.style.display = 'none';
+          return;
+        }
+
+        produtos.forEach(p => {
+          const div = document.createElement('div');
+          div.className = 'suggestion-item';
+          div.textContent = `${p.codigo} - ${p.descricao}`;
+          div.addEventListener('click', function() {
+            inputProd.value = `${p.codigo} - ${p.descricao}`;
+            produtoSelecionado = p;
+            caixaSugestoes.style.display = 'none';
+          });
+          caixaSugestoes.appendChild(div);
         });
-        
-        caixaSugestoes.appendChild(itemDiv);
-      });
 
-      caixaSugestoes.style.display = 'block';
-
-    } catch (e) {
-      console.error('Erro ao buscar produtos:', e);
-    }
-  });
-
-  // Oculta a caixa se clicar fora
-  document.addEventListener('click', function(e) {
-    if (e.target !== inputProd && !caixaSugestoes.contains(e.target)) {
-      caixaSugestoes.style.display = 'none';
-    }
-  });
-
-  function adicionarItem() {
-    if (!produtoSelecionado) {
-      alert('Selecione um produto válido da lista de sugestões!');
-      return;
-    }
-    const qtd = parseInt(document.getElementById('inputQtd').value) || 1;
-
-    itensContagem.push({
-      CODIGO: produtoSelecionado.codigo,
-      DESCRICAO: produtoSelecionado.descricao,
-      QUANTIDADE: qtd,
-      TIPO: 'Contagem'
-    });
-
-    produtoSelecionado = null;
-    inputProd.value = '';
-    document.getElementById('inputQtd').value = 1;
-    renderTabelaContagem();
-  }
-
-  function renderTabelaContagem() {
-    const corpo = document.getElementById('tabelaContagemCorpo');
-    corpo.innerHTML = '';
-
-    if (itensContagem.length === 0) {
-      corpo.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Nenhum item adicionado ainda.</td></tr>';
-      return;
-    }
-
-    itensContagem.forEach((item, index) => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td class="fw-bold">${item.CODIGO}</td>
-        <td>${item.DESCRICAO}</td>
-        <td>${item.QUANTIDADE}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="removerItem(${index})">Remover</button></td>
-      `;
-      corpo.appendChild(tr);
-    });
-  }
-
-  function removerItem(index) {
-    itensContagem.splice(index, 1);
-    renderTabelaContagem();
-  }
-
-  async function salvarContagem() {
-    if (itensContagem.length === 0) {
-      alert('Adicione pelo menos um item antes de salvar!');
-      return;
-    }
-
-    const mes = document.getElementById('selectMes').value;
-    const ano = document.getElementById('selectAno').value;
-    const dataLote = `${mes}/${ano}`;
-
-    try {
-      const res = await fetch('/salvar_lote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: dataLote, itens: itensContagem })
-      });
-
-      const data = await res.json();
-      alert(data.mensagem);
-      if (data.sucesso) {
-        itensContagem = [];
-        renderTabelaContagem();
+        caixaSugestoes.style.display = 'block';
+      } catch (e) {
+        console.error('Erro ao buscar produtos:', e);
       }
-    } catch (e) {
-      alert('Erro de conexão: ' + e);
-    }
-  }
+    });
 
-  async function consultarMovimentacao() {
-    const mes = document.getElementById('selectMesConsulta').value;
-    const ano = document.getElementById('selectAnoConsulta').value;
-    const dataConsulta = `${mes}/${ano}`;
+    document.addEventListener('click', function(e) {
+      if (e.target !== inputProd && !caixaSugestoes.contains(e.target)) {
+        caixaSugestoes.style.display = 'none';
+      }
+    });
 
-    try {
-      const res = await fetch(`/consultar_movimentacao?data=${encodeURIComponent(dataConsulta)}`);
-      const dados = await res.json();
-      const corpo = document.getElementById('tabelaConsultaCorpo');
-      corpo.innerHTML = '';
-
-      if (!dados.sucesso || !dados.itens || dados.itens.length === 0) {
-        corpo.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Nenhuma contagem encontrada para ${dataConsulta}.</td></tr>`;
+    function adicionarItem() {
+      if (!produtoSelecionado) {
+        alert('Selecione um produto válido da lista de sugestões!');
         return;
       }
+      const qtd = parseInt(document.getElementById('inputQtd').value) || 1;
 
-      dados.itens.forEach(item => {
+      listaLote.push({
+        CODIGO: produtoSelecionado.codigo,
+        DESCRICAO: produtoSelecionado.descricao,
+        QUANTIDADE: qtd,
+        TIPO: 'Contagem'
+      });
+
+      produtoSelecionado = null;
+      inputProd.value = '';
+      document.getElementById('inputQtd').value = 1;
+      renderTabela();
+    }
+
+    function renderTabela() {
+      const corpo = document.getElementById('corpoTabela');
+      corpo.innerHTML = '';
+      if (listaLote.length === 0) {
+        corpo.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Nenhum item adicionado.</td></tr>';
+        return;
+      }
+      listaLote.forEach((item, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><input type="checkbox" class="check-item" value="${item.ID}" onchange="atualizarContador()"></td>
-          <td>${item.Data}</td>
-          <td class="fw-bold">${item.Código}</td>
-          <td>${item.Quantidade}</td>
-          <td>${item.Tipo}</td>
-          <td><span class="badge ${item.Status === 'Sim' ? 'bg-success' : 'bg-warning text-dark'}">${item.Status}</span></td>
-          <td><button class="btn btn-outline-danger btn-sm" onclick="excluirItem('${dataConsulta}', '${item.ID}')">Excluir</button></td>
+          <td>${item.CODIGO}</td>
+          <td>${item.DESCRICAO}</td>
+          <td>${item.QUANTIDADE}</td>
+          <td><button class="btn btn-danger btn-sm" onclick="removerItem(${index})">Remover</button></td>
         `;
         corpo.appendChild(tr);
       });
-      atualizarContador();
-    } catch (e) {
-      console.error('Erro ao consultar movimentação:', e);
     }
-  }
 
-  function toggleCheckTodos(master) {
-    const checks = document.querySelectorAll('.check-item');
-    checks.forEach(c => c.checked = master.checked);
-    atualizarContador();
-  }
+    function removerItem(index) {
+      listaLote.splice(index, 1);
+      renderTabela();
+    }
 
-  function atualizarContador() {
-    const selecionados = document.querySelectorAll('.check-item:checked').length;
-    document.getElementById('infoItensSelecionados').innerText = `${selecionados} item(ns) selecionado(s)`;
-  }
+    async function salvarLote() {
+      if (listaLote.length === 0) {
+        alert('Adicione ao menos um item!');
+        return;
+      }
+      const mes = document.getElementById('selectMes').value;
+      const ano = document.getElementById('selectAno').value;
+      const dataLote = `${mes}/${ano}`;
 
-  async function excluirItem(dataMov, id) {
-    if (!confirm('Deseja realmente excluir este item?')) return;
+      try {
+        const res = await fetch('/salvar_lote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: dataLote, itens: listaLote })
+        });
+        const data = await res.json();
+        alert(data.mensagem);
+        if (data.sucesso) {
+          listaLote = [];
+          renderTabela();
+        }
+      } catch (e) {
+        alert('Erro: ' + e);
+      }
+    }
 
-    try {
+    async function consultarMovimentacao() {
+      const mes = document.getElementById('selectMesConsulta').value;
+      const ano = document.getElementById('selectAnoConsulta').value;
+      const dataConsulta = `${mes}/${ano}`;
+      try {
+        const res = await fetch(`/consultar_movimentacao?data=${encodeURIComponent(dataConsulta)}`);
+        const dados = await res.json();
+        const corpo = document.getElementById('corpoTabelaConsulta');
+        corpo.innerHTML = '';
+        if (!dados.sucesso || !dados.itens || dados.itens.length === 0) {
+          corpo.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Nenhuma contagem encontrada para ${dataConsulta}.</td></tr>`;
+          return;
+        }
+        dados.itens.forEach(item => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><input type="checkbox" class="check-item" value="${item.ID}" onchange="atualizarContador()"></td>
+            <td>${item.Data}</td>
+            <td>${item.Código}</td>
+            <td>${item.Quantidade}</td>
+            <td>${item.Tipo}</td>
+            <td><span class="badge ${item.Status === 'Sim' ? 'bg-success' : 'bg-warning text-dark'}">${item.Status}</span></td>
+            <td><button class="btn btn-outline-danger btn-sm" onclick="excluirItem('${dataConsulta}', '${item.ID}')">Excluir</button></td>
+          `;
+          corpo.appendChild(tr);
+        });
+        atualizarContador();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function toggleCheckTodos(master) {
+      document.querySelectorAll('.check-item').forEach(c => c.checked = master.checked);
+      atualizarContador();
+    }
+
+    function atualizarContador() {
+      const sel = document.querySelectorAll('.check-item:checked').length;
+      document.getElementById('infoItensSelecionados').innerText = `${sel} item(ns) selecionado(s)`;
+    }
+
+    async function excluirItem(dataMov, id) {
+      if (!confirm('Deseja excluir?')) return;
       const res = await fetch('/excluir_movimentacao', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -392,25 +368,14 @@
       const data = await res.json();
       alert(data.mensagem);
       if (data.sucesso) consultarMovimentacao();
-    } catch (e) {
-      alert('Erro ao excluir item: ' + e);
-    }
-  }
-
-  async function atualizarStatusLote(novoStatus) {
-    const mes = document.getElementById('selectMesConsulta').value;
-    const ano = document.getElementById('selectAnoConsulta').value;
-    const dataConsulta = `${mes}/${ano}`;
-
-    const checks = document.querySelectorAll('.check-item:checked');
-    const ids = Array.from(checks).map(c => c.value);
-
-    if (ids.length === 0) {
-      alert('Selecione ao menos um item!');
-      return;
     }
 
-    try {
+    async function atualizarStatusLote(novoStatus) {
+      const mes = document.getElementById('selectMesConsulta').value;
+      const ano = document.getElementById('selectAnoConsulta').value;
+      const dataConsulta = `${mes}/${ano}`;
+      const ids = Array.from(document.querySelectorAll('.check-item:checked')).map(c => c.value);
+      if (ids.length === 0) { alert('Selecione itens!'); return; }
       const res = await fetch('/atualizar_status_lote_por_id', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -419,11 +384,7 @@
       const data = await res.json();
       alert(data.mensagem);
       if (data.sucesso) consultarMovimentacao();
-    } catch (e) {
-      alert('Erro ao atualizar status: ' + e);
     }
-  }
-</script>
-
+  </script>
 </body>
 </html>
