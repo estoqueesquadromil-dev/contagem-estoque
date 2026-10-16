@@ -299,32 +299,48 @@
       renderTabela();
     }
 
-    async function salvarLote() {
-      if (listaLote.length === 0) {
-        alert('Adicione ao menos um item!');
-        return;
-      }
-      const mes = document.getElementById('selectMes').value;
-      const ano = document.getElementById('selectAno').value;
-      const dataLote = `${mes}/${ano}`;
-
-      try {
-        const res = await fetch('/salvar_lote', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ data: dataLote, itens: listaLote })
-        });
-        const data = await res.json();
-        alert(data.mensagem);
-        if (data.sucesso) {
-          listaLote = [];
-          renderTabela();
-        }
-      } catch (e) {
-        alert('Erro: ' + e);
-      }
+async function salvarLote() {
+    const btnSalvar = document.getElementById('btnSalvar'); // Garanta que o ID do seu botão seja 'btnSalvar'
+    
+    // Evita duplo clique desativando e alterando o visual
+    if (btnSalvar) {
+        btnSalvar.disabled = true;
+        btnSalvar.dataset.textoOriginal = btnSalvar.innerText;
+        btnSalvar.innerText = "Salvando...";
+        btnSalvar.style.opacity = "0.6";
+        btnSalvar.style.cursor = "not-allowed";
     }
 
+    try {
+        const resposta = await fetch('/salvar_lote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                data: dataLote,  // Sua variável de data
+                itens: listaItens // Sua lista de itens
+            })
+        });
+
+        const resultado = await resposta.json();
+
+        if (resultado.sucesso) {
+            alert(resultado.mensagem);
+            // Limpar lista/tela se necessário
+        } else {
+            alert("Atenção: " + resultado.mensagem);
+        }
+    } catch (erro) {
+        alert("Erro de conexão ao salvar!");
+    } finally {
+        // Restaura o botão ao estado normal
+        if (btnSalvar) {
+            btnSalvar.disabled = false;
+            btnSalvar.innerText = btnSalvar.dataset.textoOriginal || "Salvar Lote";
+            btnSalvar.style.opacity = "1";
+            btnSalvar.style.cursor = "pointer";
+        }
+    }
+}
     async function consultarMovimentacao() {
       const mes = document.getElementById('selectMesConsulta').value;
       const ano = document.getElementById('selectAnoConsulta').value;
