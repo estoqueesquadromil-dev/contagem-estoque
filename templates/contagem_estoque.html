@@ -327,7 +327,6 @@ function adicionarItem() {
   inputProd.focus();
 }
 
-// Renderiza a tabela incluindo os botões Editar e Remover
 function renderTabela() {
   const corpo = document.getElementById('corpoTabela');
   corpo.innerHTML = '';
@@ -340,7 +339,6 @@ function renderTabela() {
   listaLote.forEach((item, index) => {
     const tr = document.createElement('tr');
     
-    // Cor da diferença
     let corDifClass = 'text-primary';
     let difTexto = item.DIFERENCA;
     if (item.DIFERENCA < 0) {
@@ -357,14 +355,16 @@ function renderTabela() {
       <td><span class="${corDifClass}">${difTexto}</span></td>
       <td>
         <div class="d-flex gap-1">
-          <button class="btn btn-warning btn-sm fw-bold text-dark" onclick="editarItem(${index})" title="Editar item">Editar</button>
-          <button class="btn btn-danger btn-sm" onclick="removerItem(${index})" title="Remover item">Remover</button>
+          <button class="btn btn-warning btn-sm fw-bold text-dark" onclick="editarItem(${index})">Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="removerItem(${index})">Remover</button>
         </div>
       </td>
     `;
     corpo.appendChild(tr);
   });
 }
+
+    
 
 // Função para Editar um item da lista antes de salvar
 // Função para Editar um item da lista e recalcular a diferença automaticamente
