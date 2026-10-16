@@ -193,8 +193,7 @@ def consultar_movimentacao():
                     "Data": str(r.get("Data", "")),
                     "Código": str(r.get("Código", "")),
                     "SaldoEstoque": r.get("Saldo Estoque", 0),
-                    # Lê considerando possíveis variações do nome da coluna na planilha
-                    "Quantidade": r.get("Quantidade Contada", r.get("Quantidade", 0)),
+                    "Quantidade": r.get("Quantidade Contada", 0),
                     "Diferenca": r.get("Diferenca", 0),
                     "Tipo": str(r.get("Tipo", "Contagem")),
                     "Inventario Feito": str(r.get("Inventario Feito", "Não"))
