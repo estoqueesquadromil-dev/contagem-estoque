@@ -137,7 +137,7 @@
 <!-- SEÇÃO 2: CONSULTAR -->
     <section id="sec-consultar" class="page-section">
       <div class="card p-4 mb-4">
-        <h4 class="text-primary mb-3">Consultar Movimentação & Saldo de Estoque</h4>
+        <h4 class="text-primary mb-3">Consultar Movimentação & Lotes</h4>
 
         <!-- BLOCÃO PARA COLAR SALDO DE ESTOQUE DA TABELA -->
         <div class="card bg-light p-3 mb-4 border">
@@ -145,72 +145,80 @@
             <div class="col-md-8">
               <label class="form-label fw-bold text-dark m-0">Colar Saldo de Estoque (Código e Quantidade):</label>
               <small class="text-muted d-block mb-2">Cole as colunas do Excel/Sheets diretamente aqui (ex: UP075-1586 4)</small>
-              <textarea id="txtSaldoEstoque" class="form-control" rows="5" placeholder="UP075-1586	4&#10;UP075-1786	1&#10;UP075-1986	2"></textarea>
+              <textarea id="txtSaldoEstoque" class="form-control" rows="3" placeholder="UP075-1586	4&#10;UP075-1786	1"></textarea>
             </div>
             <div class="col-md-4 d-flex flex-column justify-content-between">
               <div>
                 <small class="text-muted d-block fw-semibold">Última Atualização nesta Aba:</small>
-                <span id="txtUltimaAtualizacaoSaldo" class="fw-bold text-primary d-block mb-3">Carregando...</span>
+                <span id="txtUltimaAtualizacaoSaldo" class="fw-bold text-primary d-block mb-2">Nenhuma atualização salva</span>
               </div>
-              <button id="btnSalvarSaldo" class="btn btn-success btn-lg fw-bold w-100" onclick="salvarSaldoEstoque()">
+              <button id="btnSalvarSaldo" class="btn btn-success fw-bold w-100" onclick="salvarSaldoEstoque()">
                 <i class="bi bi-save"></i> Salvar Saldo de Estoque
               </button>
             </div>
           </div>
         </div>
 
-        <!-- FILTROS DE CONSULTA -->
-        <div class="row mb-3 align-items-end">
-          <div class="col-md-4">
+        <!-- FILTROS E BOTÕES DE STATUS NA PARTE DE CIMA -->
+        <div class="row mb-3 align-items-end g-2">
+          <div class="col-md-2">
             <label class="form-label fw-semibold">Mês:</label>
-            <select id="selectMesConsulta" class="form-select">
+            <select id="selectMesConsulta" class="form-select form-select-sm">
               <option value="01">01 - Janeiro</option><option value="02">02 - Fevereiro</option><option value="03">03 - Março</option>
               <option value="04">04 - Abril</option><option value="05">05 - Maio</option><option value="06">06 - Junho</option>
               <option value="07">07 - Julho</option><option value="08">08 - Agosto</option><option value="09">09 - Setembro</option>
               <option value="10" selected>10 - Outubro</option><option value="11">11 - Novembro</option><option value="12">12 - Dezembro</option>
             </select>
           </div>
-          <div class="col-md-4">
+          <div class="col-md-2">
             <label class="form-label fw-semibold">Ano:</label>
-            <select id="selectAnoConsulta" class="form-select">
+            <select id="selectAnoConsulta" class="form-select form-select-sm">
               <option value="2026" selected>2026</option><option value="2027">2027</option><option value="2028">2028</option>
             </select>
           </div>
-          <div class="col-md-4">
-            <button class="btn btn-secondary w-100 fw-bold" onclick="consultarMovimentacao()">Filtrar / Recarregar</button>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">Filtrar por Código:</label>
+            <input type="text" id="filtroCodigoConsulta" class="form-control form-control-sm" placeholder="Digite o código..." onkeyup="filtrarTabelaConsulta()">
+          </div>
+          <div class="col-md-2">
+            <button class="btn btn-secondary btn-sm w-100 fw-bold" onclick="consultarMovimentacao()">Filtrar / Recarregar</button>
+          </div>
+          
+          <!-- BOTÕES DE STATUS MENORES E NO TOPO -->
+          <div class="col-md-3 d-flex gap-1 justify-content-end">
+            <button class="btn btn-warning btn-sm fw-bold text-dark px-2" onclick="atualizarStatusLote('Sim')" title="Marcar como Processado">Processado</button>
+            <button class="btn btn-outline-secondary btn-sm fw-bold px-2" onclick="atualizarStatusLote('Não')" title="Marcar como Pendente">Pendente</button>
           </div>
         </div>
 
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span id="infoItensSelecionados" class="text-muted small">0 itens selecionados</span>
+        </div>
+
+        <!-- TABELA DE CONSULTA COM AS COLUNAS SOLICITADAS -->
         <div class="table-responsive">
-          <table class="table table-bordered align-middle">
+          <table class="table table-bordered table-striped align-middle">
             <thead class="table-dark">
               <tr>
                 <th style="width: 40px;"><input type="checkbox" id="checkTodos" onclick="toggleCheckTodos(this)"></th>
-                <th>Mês/Ano</th>
+                <th>Data</th>
                 <th>Código</th>
-                <th>Quantidade</th>
+                <th>Saldo Estoque</th>
+                <th>Quantidade Contada</th>
+                <th>Diferença</th>
                 <th>Tipo</th>
                 <th>Status</th>
+                <th>Inventario Feito</th>
                 <th>Ação</th>
               </tr>
             </thead>
             <tbody id="corpoTabelaConsulta">
-              <tr><td colspan="7" class="text-center text-muted">Nenhum registo carregado.</td></tr>
+              <tr><td colspan="10" class="text-center text-muted">Nenhum registo carregado.</td></tr>
             </tbody>
           </table>
         </div>
-
-        <div class="d-flex justify-content-between align-items-center mt-3">
-          <span id="infoItensSelecionados" class="text-muted">0 itens selecionados</span>
-          <div>
-            <button class="btn btn-warning me-2 fw-bold" onclick="atualizarStatusLote('Sim')">Marcar como Processado (Sim)</button>
-            <button class="btn btn-outline-secondary fw-bold" onclick="atualizarStatusLote('Não')">Marcar como Pendente (Não)</button>
-          </div>
-        </div>
       </div>
     </section>
-
-  </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
@@ -425,37 +433,34 @@ async function salvarLote() {
 
     
     
-    async function consultarMovimentacao() {
-      const mes = document.getElementById('selectMesConsulta').value;
-      const ano = document.getElementById('selectAnoConsulta').value;
-      const dataConsulta = `${mes}/${ano}`;
-      try {
-        const res = await fetch(`/consultar_movimentacao?data=${encodeURIComponent(dataConsulta)}`);
-        const dados = await res.json();
-        const corpo = document.getElementById('corpoTabelaConsulta');
-        corpo.innerHTML = '';
-        if (!dados.sucesso || !dados.itens || dados.itens.length === 0) {
-          corpo.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Nenhuma contagem encontrada para ${dataConsulta}.</td></tr>`;
-          return;
-        }
-        dados.itens.forEach(item => {
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td><input type="checkbox" class="check-item" value="${item.ID}" onchange="atualizarContador()"></td>
-            <td>${item.Data}</td>
-            <td><strong>${item.Código}</strong></td>
-            <td>${item.Quantidade}</td>
-            <td>${item.Tipo}</td>
-            <td><span class="badge ${item.Status === 'Sim' ? 'bg-success' : 'bg-warning text-dark'}">${item.Status}</span></td>
-            <td><button class="btn btn-outline-danger btn-sm" onclick="excluirItem('${dataConsulta}', '${item.ID}')">Excluir</button></td>
-          `;
-          corpo.appendChild(tr);
-        });
-        atualizarContador();
-      } catch (e) {
-        console.error(e);
-      }
+let todosOsDadosConsulta = [];
+
+// Função de consulta atualizada para guardar os dados e permitir filtragem rápida
+async function consultarMovimentacao() {
+  const mes = document.getElementById('selectMesConsulta').value;
+  const ano = document.getElementById('selectAnoConsulta').value;
+  const dataConsulta = `${mes}/${ano}`;
+  
+  try {
+    const res = await fetch(`/consultar_movimentacao?data=${encodeURIComponent(dataConsulta)}`);
+    const dados = await res.json();
+    
+    if (!dados.sucesso || !dados.itens) {
+      todosOsDadosConsulta = [];
+      renderizarTabelaConsulta([]);
+      return;
     }
+    
+    todosOsDadosConsulta = dados.itens;
+    renderizarTabelaConsulta(todosOsDadosConsulta);
+    buscarSaldoAtual(dataConsulta);
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+
+    
 
     function toggleCheckTodos(master) {
       document.querySelectorAll('.check-item').forEach(c => c.checked = master.checked);
@@ -637,7 +642,49 @@ inputProd.addEventListener('blur', function() {
 });
 
 
+// Renderiza a tabela de consulta com a ordem exata de colunas solicitada
+function renderizarTabelaConsulta(itens) {
+  const corpo = document.getElementById('corpoTabelaConsulta');
+  corpo.innerHTML = '';
+  
+  if (itens.length === 0) {
+    corpo.innerHTML = `<tr><td colspan="10" class="text-center text-muted">Nenhum registo encontrado.</td></tr>`;
+    atualizarContador();
+    return;
+  }
 
+  itens.forEach(item => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="checkbox" class="check-item" value="${item.ID}" onchange="atualizarContador()"></td>
+      <td>${item.Data}</td>
+      <td><strong>${item.Código}</strong></td>
+      <td><span class="badge bg-secondary">${item.SaldoEstoque !== undefined ? item.SaldoEstoque : 0}</span></td>
+      <td><strong>${item.Quantidade}</strong></td>
+      <td>${item.Diferenca !== undefined ? item.Diferenca : 0}</td>
+      <td>${item.Tipo}</td>
+      <td><span class="badge ${item.Status === 'Sim' ? 'bg-success' : 'bg-warning text-dark'}">${item.Status}</span></td>
+      <td><span class="badge ${item['Inventario Feito'] === 'Sim' ? 'bg-success' : 'bg-secondary'}">${item['Inventario Feito']}</span></td>
+      <td><button class="btn btn-outline-danger btn-sm" onclick="excluirItem('${item.Data}', '${item.ID}')">Excluir</button></td>
+    `;
+    corpo.appendChild(tr);
+  });
+  atualizarContador();
+}
+
+// Filtra dinamicamente pelo código digitado no campo de pesquisa
+function filtrarTabelaConsulta() {
+  const termo = document.getElementById('filtroCodigoConsulta').value.trim().toUpperCase();
+  if (!termo) {
+    renderizarTabelaConsulta(todosOsDadosConsulta);
+    return;
+  }
+  
+  const filtrados = todosOsDadosConsulta.filter(item => 
+    String(item.Código).toUpperCase().includes(termo)
+  );
+  renderizarTabelaConsulta(filtrados);
+}
 
 
 
