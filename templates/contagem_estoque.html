@@ -323,18 +323,16 @@ async function salvarLote() {
     }
 
     try {
-        const mesElem = document.getElementById('mesContagem') || document.querySelector('select:nth-of-type(1)');
-        const anoElem = document.getElementById('anoContagem') || document.querySelector('select:nth-of-type(2)');
-        
-        const mes = mesElem ? mesElem.value : '10';
-        const ano = anoElem ? anoElem.value : '2026';
+        // Pega os valores reais dos selects do formulário
+        const mes = document.getElementById('selectMes').value;
+        const ano = document.getElementById('selectAno').value;
         const dataFormatada = `${mes}/${ano}`;
 
-        // Validação da lista de itens usando a variável correta: tabelaItens
-        if (typeof tabelaItens === 'undefined' || tabelaItens.length === 0) {
+        // Validação correta usando a variável exata do seu projeto: listaLote
+        if (typeof listaLote === 'undefined' || listaLote.length === 0) {
             alert('Adicione pelo menos um item antes de salvar!');
             
-            // IMPORTANTE: Libera o botão se a lista estiver vazia para não trancá-lo
+            // Libera o botão se a lista estiver vazia
             if (btnSalvar) {
                 btnSalvar.disabled = false;
                 btnSalvar.innerText = btnSalvar.dataset.textoOriginal || "Salvar Contagem";
@@ -350,7 +348,7 @@ async function salvarLote() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 data: dataFormatada,
-                itens: tabelaItens // Ajustado para enviar a variável correta da sua tabela
+                itens: listaLote // Envia a lista correta de itens
             })
         });
 
@@ -358,9 +356,9 @@ async function salvarLote() {
 
         if (resultado.sucesso) {
             alert(resultado.mensagem);
-            if (typeof limparTabela === 'function') {
-                limparTabela();
-            }
+            // Limpa a lista na tela e atualiza a tabela visualmente
+            listaLote = [];
+            renderTabela();
         } else {
             alert("Atenção: " + resultado.mensagem);
         }
@@ -368,7 +366,7 @@ async function salvarLote() {
         console.error("Erro ao salvar:", erro);
         alert("Erro de conexão ao salvar!");
     } finally {
-        // Restaura o botão ao estado normal após terminar com sucesso ou erro
+        // Restaura o botão ao estado normal após terminar (com sucesso ou erro)
         if (btnSalvar) {
             btnSalvar.disabled = false;
             btnSalvar.innerText = btnSalvar.dataset.textoOriginal || "Salvar Contagem";
@@ -378,6 +376,7 @@ async function salvarLote() {
         }
     }
 }
+
     
     
     async function consultarMovimentacao() {
