@@ -68,13 +68,20 @@ def buscar_produtos():
     if not termo:
         return jsonify([])
     
+    # Se por algum motivo o cache estiver vazio, recarrega os dados
+    if not produtos_cache:
+        carregar_base_produtos()
+    
     resultados = []
     for p in produtos_cache:
         if termo in p['codigo'].lower() or termo in p['descricao'].lower():
             resultados.append(p)
-            if len(resultados) >= 30: # Limita a 30 sugestões para ser rápido
+            if len(resultados) >= 20: # Limita a 20 sugestões para ser rápido
                 break
     return jsonify(resultados)
+
+
+
 
 @app.route('/salvar_lote', methods=['POST'])
 def salvar_lote():
