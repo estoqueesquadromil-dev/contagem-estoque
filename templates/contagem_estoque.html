@@ -682,6 +682,7 @@ inputProd.addEventListener('blur', function() {
 
 
 // Renderiza a tabela de consulta com a ordem exata de colunas solicitada
+// Renderiza a tabela de consulta com a opção de editar a quantidade
 function renderizarTabelaConsulta(itens) {
   const corpo = document.getElementById('corpoTabelaConsulta');
   corpo.innerHTML = '';
@@ -694,21 +695,75 @@ function renderizarTabelaConsulta(itens) {
 
   itens.forEach(item => {
     const tr = document.createElement('tr');
+    tr.id = `linha-${item.ID}`;
+    
+    // Cor da diferença
+    let corDifClass = 'text-primary';
+    let difTexto = item.Diferenca;
+    if (item.Diferenca < 0) {
+      corDifClass = 'text-danger fw-bold';
+    } else if (item.Diferenca > 0) {
+      corDifClass = 'text-success fw-bold';
+      difTexto = `+${item.Diferenca}`;
+    }
+
     tr.innerHTML = `
       <td><input type="checkbox" class="check-item" value="${item.ID}" onchange="atualizarContador()"></td>
       <td>${item.Data}</td>
       <td><strong>${item.Código}</strong></td>
       <td><span class="badge bg-secondary">${item.SaldoEstoque !== undefined ? item.SaldoEstoque : 0}</span></td>
-      <td><strong>${item.Quantidade}</strong></td>
-      <td>${item.Diferenca !== undefined ? item.Diferenca : 0}</td>
+      <td id="qtd-container-${item.ID}"><strong>${item.Quantidade}</strong></td>
+      <td><span id="dif-${item.ID}" class="${corDifClass}">${difTexto}</span></td>
       <td>${item.Tipo}</td>
       <td><span class="badge ${item['Inventario Feito'] === 'Sim' ? 'bg-success' : 'bg-secondary'}">${item['Inventario Feito']}</span></td>
-      <td><button class="btn btn-outline-danger btn-sm" onclick="excluirItem('${item.Data}', '${item.ID}')">Excluir</button></td>
+      <td>
+        <div class="d-flex gap-1">
+          <button id="btn-edit-${item.ID}" class="btn btn-warning btn-sm fw-bold text-dark" onclick="habilitarEdicaoConsulta('${item.Data}', '${item.ID}', ${item.Quantidade})">Editar</button>
+          <button class="btn btn-outline-danger btn-sm" onclick="excluirItem('${item.Data}', '${item.ID}')">Excluir</button>
+        </div>
+      </td>
     `;
-    
     corpo.appendChild(tr);
   });
   atualizarContador();
+}
+
+// Transforma o campo de quantidade numa caixa de texto para edição direta na linha
+function habilitarEdicaoConsulta(dataMov, id, qtdAtual) {
+  const container = document.getElementById(`qtd-container-${id}`);
+  const btnEdit = document.getElementById(`btn-edit-${id}`);
+
+  container.innerHTML = `
+    <div class="input-group input-group-sm" style="width: 110px;">
+      <input type="number" id="input-qtd-${id}" class="form-control" value="${qtdAtual}" min="0">
+      <button class="btn btn-success" onclick="salvarEdicaoConsulta('${dataMov}', '${id}')" title="Salvar"><i class="bi bi-check-lg"></i></button>
+    </div>
+  `;
+  btnEdit.style.display = 'none';
+}
+
+// Envia a nova quantidade para o backend, recalcula e atualiza a tabela
+async function salvarEdicaoConsulta(dataMov, id) {
+  const novaQtd = parseInt(document.getElementById(`input-qtd-${id}`).value) || 0;
+
+  try {
+    const res = await fetch('/atualizar_quantidade_lote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: dataMov, id: id, quantidade: novaQtd })
+    });
+    const data = await res.json();
+
+    if (data.sucesso) {
+      // Recarrega os dados da tabela para refletir a nova quantidade e diferença calculada
+      consultarMovimentacao();
+    } else {
+      alert(data.mensagem);
+    }
+  } catch (e) {
+    console.error(e);
+    alert('Erro ao atualizar a quantidade.');
+  }
 }
 
 // Filtra dinamicamente pelo código digitado no campo de pesquisa
