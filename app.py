@@ -190,19 +190,28 @@ def teste_direto_planilha():
     try:
         gc = conectar_google_sheets()
         if not gc:
-            return jsonify({"sucesso": False, "erro": "Falha na autenticação do Google Sheets (verifique as credenciais)"})
+            return jsonify({"sucesso": False, "erro": "Falha na autenticação do Google Sheets"})
         
-        planilha = gc.open_by_key('1HPkjEtFRClBqk3_yD4LGe9pA3L6XrHaaUikGh57Q')
-        sheet = planilha.worksheet('dados')
+        # ID exato da planilha 'contagem_semi_acabado'
+        planilha_id = '1HPkjEtFRClBqk3_yD4LGe9pA3L6XrHaaUikGh57Q'
         
-        # Pega apenas as primeiras 5 linhas para teste rápido
+        try:
+            planilha = gc.open_by_key(planilha_id)
+        except Exception as e:
+            return jsonify({"sucesso": False, "erro": f"Planilha não encontrada ou não partilhada com o bot: {str(e)}"})
+        
+        try:
+            sheet = planilha.worksheet('dados')
+        except Exception as e:
+            return jsonify({"sucesso": False, "erro": f"A aba 'dados' não foi encontrada na planilha: {str(e)}"})
+        
         linhas = sheet.get_all_values()
         
         return jsonify({
             "sucesso": True,
-            "total_linhas_encontradas": len(linhas),
-            "cabecalho": linhas[0] if len(linhas) > 0 else [],
-            "primeiro_produto": linhas[1] if len(linhas) > 1 else []
+            "nome_planilha": planilha.title,
+            "total_linhas": len(linhas),
+            "primeira_linha": linhas[0] if len(linhas) > 0 else []
         })
     except Exception as e:
         return jsonify({"sucesso": False, "erro": str(e)})
