@@ -40,6 +40,7 @@
       cursor: pointer;
       border-bottom: 1px solid #f1f1f1;
       font-size: 0.9rem;
+      color: #212529;
     }
     .suggestion-item:hover {
       background-color: #0d6efd;
@@ -204,54 +205,73 @@
     const inputProd = document.getElementById('inputProduto');
     const caixaSugestoes = document.getElementById('caixaSugestoes');
 
-    inputProd.addEventListener('input', async function() {
-      const termo = this.value.trim();
-      caixaSugestoes.innerHTML = '';
-      
-      if (termo.length === 0) {
-        caixaSugestoes.style.display = 'none';
-        produtoSelecionado = null;
-        return;
-      }
-
-      try {
-        const res = await fetch(`/buscar_produtos?termo=${encodeURIComponent(termo)}`);
-        const produtos = await res.json();
-
-        if (!produtos || produtos.length === 0) {
+    if (inputProd && caixaSugestoes) {
+      inputProd.addEventListener('input', async function() {
+        const termo = this.value.trim();
+        caixaSugestoes.innerHTML = '';
+        
+        if (termo.length === 0) {
           caixaSugestoes.style.display = 'none';
+          produtoSelecionado = null;
           return;
         }
 
-        produtos.forEach(p => {
-          const div = document.createElement('div');
-          div.className = 'suggestion-item';
-          div.textContent = `${p.codigo} - ${p.descricao}`;
-          div.addEventListener('click', function() {
-            inputProd.value = `${p.codigo} - ${p.descricao}`;
-            produtoSelecionado = p;
+        try {
+          const res = await fetch(`/buscar_produtos?termo=${encodeURIComponent(termo)}`);
+          const produtos = await res.json();
+
+          if (!produtos || produtos.length === 0) {
             caixaSugestoes.style.display = 'none';
+            produtoSelecionado = null;
+            return;
+          }
+
+          produtos.forEach(p => {
+            const div = document.createElement('div');
+            div.className = 'suggestion-item';
+            div.innerHTML = `<strong>${p.codigo}</strong> - ${p.descricao}`;
+            
+            // Usa mousedown para capturar o clique antes do blur do input
+            div.addEventListener('mousedown', function(e) {
+              e.preventDefault();
+              inputProd.value = `${p.codigo} - ${p.descricao}`;
+              produtoSelecionado = p;
+              caixaSugestoes.style.display = 'none';
+            });
+
+            caixaSugestoes.appendChild(div);
           });
-          caixaSugestoes.appendChild(div);
-        });
 
-        caixaSugestoes.style.display = 'block';
-      } catch (e) {
-        console.error('Erro ao buscar produtos:', e);
-      }
-    });
+          caixaSugestoes.style.display = 'block';
+        } catch (e) {
+          console.error('Erro ao buscar produtos:', e);
+        }
+      });
 
-    document.addEventListener('click', function(e) {
-      if (e.target !== inputProd && !caixaSugestoes.contains(e.target)) {
-        caixaSugestoes.style.display = 'none';
-      }
-    });
+      document.addEventListener('click', function(e) {
+        if (e.target !== inputProd && !caixaSugestoes.contains(e.target)) {
+          caixaSugestoes.style.display = 'none';
+        }
+      });
+    }
 
     function adicionarItem() {
-      if (!produtoSelecionado) {
-        alert('Selecione um produto válido da lista de sugestões!');
+      const textoDigitado = inputProd.value.trim();
+      
+      // Se não clicou na sugestão, mas escreveu um código válido
+      if (!produtoSelecionado && textoDigitado) {
+        let partes = textoDigitado.split(' - ');
+        produtoSelecionado = {
+          codigo: partes[0].trim(),
+          descricao: partes[1] ? partes[1].trim() : ''
+        };
+      }
+
+      if (!produtoSelecionado || !produtoSelecionado.codigo) {
+        alert('Selecione ou digite um código de produto válido!');
         return;
       }
+
       const qtd = parseInt(document.getElementById('inputQtd').value) || 1;
 
       listaLote.push({
@@ -265,6 +285,7 @@
       inputProd.value = '';
       document.getElementById('inputQtd').value = 1;
       renderTabela();
+      inputProd.focus();
     }
 
     function renderTabela() {
@@ -277,7 +298,7 @@
       listaLote.forEach((item, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${item.CODIGO}</td>
+          <td><strong>${item.CODIGO}</strong></td>
           <td>${item.DESCRICAO}</td>
           <td>${item.QUANTIDADE}</td>
           <td><button class="btn btn-danger btn-sm" onclick="removerItem(${index})">Remover</button></td>
@@ -335,7 +356,7 @@
           tr.innerHTML = `
             <td><input type="checkbox" class="check-item" value="${item.ID}" onchange="atualizarContador()"></td>
             <td>${item.Data}</td>
-            <td>${item.Código}</td>
+            <td><strong>${item.Código}</strong></td>
             <td>${item.Quantidade}</td>
             <td>${item.Tipo}</td>
             <td><span class="badge ${item.Status === 'Sim' ? 'bg-success' : 'bg-warning text-dark'}">${item.Status}</span></td>
