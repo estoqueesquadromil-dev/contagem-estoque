@@ -112,6 +112,7 @@ def atualizar_cache_manual():
     return jsonify({"sucesso": True, "total_produtos": len(CACHE_PRODUTOS)})
 
 # --- ROTA PARA SALVAR LOTE ---
+# --- ROTA PARA SALVAR LOTE COM VALIDAÇÃO DE CÓDIGO ---
 @app.route('/salvar_lote', methods=['POST'])
 def salvar_lote():
     dados = request.json
@@ -122,6 +123,21 @@ def salvar_lote():
         return jsonify({'sucesso': False, 'mensagem': 'Dados incompletos!'})
 
     try:
+        # Obter a lista atualizada de produtos do cache
+        produtos = obter_produtos_cached()
+        codigos_validos = {p['codigo'].upper() for p in produtos}
+
+        # Verificar se todos os itens possuem código válido na planilha 'dados'
+        for item in itens:
+            cod_item = str(item.get('CODIGO', '')).strip().upper()
+            if not cod_item:
+                return jsonify({'sucesso': False, 'mensagem': 'Existe um item com código em branco!'})
+            if cod_item not in codigos_validos:
+                return jsonify({
+                    'sucesso': False, 
+                    'mensagem': f'O código "{cod_item}" não existe na aba "dados" da planilha!'
+                })
+
         gc = conectar_google_sheets()
         planilha = gc.open(NOME_PLANILHA)
         
@@ -147,10 +163,12 @@ def salvar_lote():
         sheet_mov.append_rows(linhas_adicionar)
         return jsonify({'sucesso': True, 'mensagem': f'Gravado com sucesso na aba {data_lote}!'})
     except Exception as e:
-        return jsonify({'sucesso': False, 'mensagem': f'Erro: {str(e)}'})
+        return jsonify({'sucesso': False, 'mensagem': f'Erro ao salvar: {str(e)}'})
 
-# --- ROTA PARA CONSULTAR MOVIMENTAÇÃO ---
-@app.route('/consultar_movimentacao', methods=['GET'])
+
+
+
+
 def consultar_movimentacao():
     data_consulta = request.args.get('data', '').strip()
     if not data_consulta:
