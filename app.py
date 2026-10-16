@@ -230,7 +230,7 @@ def excluir_movimentacao():
     except Exception as e:
         return jsonify({'sucesso': False, 'mensagem': f'Erro: {str(e)}'})
 
-# --- ROTA PARA ATUALIZAR STATUS ---
+# --- ROTA PARA ATUALIZAR STATUS DE INVENTÁRIO FEITO ---
 @app.route('/atualizar_status_lote_por_id', methods=['POST'])
 def atualizar_status_lote_por_id():
     try:
@@ -246,12 +246,15 @@ def atualizar_status_lote_por_id():
         updates = []
         for idx, linha in enumerate(linhas[1:], start=2):
             if len(linha) > 0 and str(linha[0]).strip() in ids:
-                updates.append({'range': f'F{idx}', 'values': [[novo_status]]})
+                # Atualiza a coluna H (Inventario Feito) em vez da F
+                updates.append({'range': f'H{idx}', 'values': [[novo_status]]})
         if updates:
             aba.batch_update(updates)
-        return jsonify({'sucesso': True, 'mensagem': 'Status atualizado!'})
+        return jsonify({'sucesso': True, 'mensagem': 'Inventário Feito atualizado com sucesso!'})
     except Exception as e:
         return jsonify({'sucesso': False, 'mensagem': f'Erro: {str(e)}'})
+
+
 
 # --- ROTA DE TESTE DIRETO ---
 @app.route('/teste_direto_planilha', methods=['GET'])
