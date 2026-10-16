@@ -20,7 +20,7 @@
     .page-section { display: none; }
     .page-section.active { display: block; }
     
-    /* CAIXA DE SUGESTÕES IGUAL AO SISTEMA DE BAIXA */
+    /* CAIXA DE SUGESTÕES FLUTUANTE */
     .suggestion-box {
       position: absolute;
       top: 100%;
@@ -200,13 +200,14 @@
       elem.classList.add('active');
     }
 
-    // AUTOCOMPLETE IDÊNTICO AO SISTEMA DE BAIXA
+    // AUTOCOMPLETE DINÂMICO
     const inputProd = document.getElementById('inputProduto');
     const caixaSugestoes = document.getElementById('caixaSugestoes');
 
     inputProd.addEventListener('input', async function() {
       const termo = this.value.trim();
       caixaSugestoes.innerHTML = '';
+      
       if (termo.length === 0) {
         caixaSugestoes.style.display = 'none';
         produtoSelecionado = null;
@@ -217,7 +218,7 @@
         const res = await fetch(`/buscar_produtos?termo=${encodeURIComponent(termo)}`);
         const produtos = await res.json();
 
-        if (produtos.length === 0) {
+        if (!produtos || produtos.length === 0) {
           caixaSugestoes.style.display = 'none';
           return;
         }
