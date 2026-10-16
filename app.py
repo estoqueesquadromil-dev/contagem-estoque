@@ -82,7 +82,6 @@ def buscar_produtos():
 
 
 
-
 @app.route('/salvar_lote', methods=['POST'])
 def salvar_lote():
     dados = request.json
