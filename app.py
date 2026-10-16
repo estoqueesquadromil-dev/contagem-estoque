@@ -7,8 +7,7 @@ from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
 
-NOME_PLANILHA_PRODUTOS = 'contagem_semi_acabado'
-NOME_PLANILHA_MOVIMENTACAO = 'MOVIMENTACAO_NOMUS'
+NOME_PLANILHA = 'contagem_semi_acabado'
 
 produtos_cache = []
 codigos_validos_set = set()
@@ -30,31 +29,30 @@ def carregar_base_produtos():
     try:
         gc = conectar_google_sheets()
         if not gc:
-            print("[ERRO] Não foi possível conectar ao Google Sheets para carregar produtos.")
+            print("[ERRO] Não foi possível conectar ao Google Sheets.")
             return
         
-        planilha = gc.open(NOME_PLANILHA_PRODUTOS)
+        planilha = gc.open(NOME_PLANILHA)
         sheet = planilha.worksheet('dados')
         dados = sheet.get_all_records()
-        print(f"[DEBUG] Dados brutos lidos da aba 'dados': {len(dados)} linhas encontradas.")
-        
-        df = pd.DataFrame(dados)
-        print(f"[DEBUG] Colunas encontradas no DataFrame: {df.columns.tolist()}")
         
         produtos_cache = []
         codigos_validos_set = set()
-        for _, row in df.iterrows():
-            codigo = str(row.get('PRODUTO', row.get('CODIGO', row.get('Produto', '')))).strip()
-            descricao = str(row.get('DESCRICAO', row.get('Descrição', ''))).strip()
+        
+        for row in dados:
+            # Procura chaves independentemente de maiúsculas/minúsculas
+            codigo = str(row.get('PRODUTO') or row.get('Produto') or row.get('CODIGO') or row.get('Codigo') or '').strip()
+            descricao = str(row.get('DESCRICAO') or row.get('Descrição') or row.get('descricao') or '').strip()
+            
             if codigo and codigo.lower() != 'nan':
                 produtos_cache.append({'codigo': codigo, 'descricao': descricao})
                 codigos_validos_set.add(codigo)
                 
-        print(f"[INFO] {len(produtos_cache)} produtos carregados com sucesso para o cache!")
+        print(f"[INFO] {len(produtos_cache)} produtos carregados com sucesso para o cache da contagem!")
     except Exception as e:
-        print(f"[ERRO CRITICO] Falha ao carregar produtos da planilha: {e}")
+        print(f"[ERRO CRITICO] Falha ao carregar produtos: {e}")
 
-# Carrega a base ao iniciar
+# Carrega os produtos ao iniciar
 carregar_base_produtos()
 
 @app.route('/')
@@ -71,14 +69,14 @@ def buscar_produtos():
     for p in produtos_cache:
         if termo in p['codigo'].lower() or termo in p['descricao'].lower():
             resultados.append(p)
-            if len(resultados) >= 30:
+            if len(resultados) >= 30: # Limita a 30 sugestões para ser rápido
                 break
     return jsonify(resultados)
 
 @app.route('/salvar_lote', methods=['POST'])
 def salvar_lote():
     dados = request.json
-    data_lote = dados.get('data')
+    data_lote = dados.get('data') # Ex: "10/2026"
     itens = dados.get('itens', [])
 
     if not data_lote or not itens:
@@ -89,12 +87,12 @@ def salvar_lote():
         if not gc:
             return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'})
 
-        planilha_mov = gc.open(NOME_PLANILHA_MOVIMENTACAO)
+        planilha = gc.open(NOME_PLANILHA)
         
         try:
-            sheet_mov = planilha_mov.worksheet(data_lote)
+            sheet_mov = planilha.worksheet(data_lote)
         except gspread.exceptions.WorksheetNotFound:
-            sheet_mov = planilha_mov.add_worksheet(title=data_lote, rows="1000", cols="7")
+            sheet_mov = planilha.add_worksheet(title=data_lote, rows="1000", cols="7")
             sheet_mov.append_row(["ID", "Data", "Código", "Quantidade", "Tipo", "Status", "Inventario Feito"])
 
         linhas_para_adicionar = []
@@ -109,7 +107,7 @@ def salvar_lote():
             linhas_para_adicionar.append([row_id, data_lote, codigo, quantidade, tipo, status, inventario_feito])
 
         sheet_mov.append_rows(linhas_para_adicionar)
-        return jsonify({'sucesso': True, 'mensagem': f'Sucesso! Itens guardados na aba {data_lote}.'})
+        return jsonify({'sucesso': True, 'mensagem': f'Sucesso! Contagem gravada na aba {data_lote}.'})
     except Exception as e:
         return jsonify({'sucesso': False, 'mensagem': f'Erro ao processar: {str(e)}'})
 
@@ -124,9 +122,9 @@ def consultar_movimentacao():
         if not gc:
             return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão.'})
 
-        planilha_mov = gc.open(NOME_PLANILHA_MOVIMENTACAO)
+        planilha = gc.open(NOME_PLANILHA)
         try:
-            sheet_mov = planilha_mov.worksheet(data_consulta)
+            sheet_mov = planilha.worksheet(data_consulta)
         except gspread.exceptions.WorksheetNotFound:
             return jsonify({'sucesso': True, 'itens': [], 'mensagem': f'Nenhuma contagem encontrada para {data_consulta}.'})
 
@@ -160,8 +158,8 @@ def excluir_movimentacao():
     row_id = str(dados.get('id', '')).strip()
     try:
         gc = conectar_google_sheets()
-        planilha_mov = gc.open(NOME_PLANILHA_MOVIMENTACAO)
-        sheet_mov = planilha_mov.worksheet(data_mov)
+        planilha = gc.open(NOME_PLANILHA)
+        sheet_mov = planilha.worksheet(data_mov)
         linhas = sheet_mov.get_all_values()
         cabecalhos = [str(c).strip().upper() for c in linhas[0]]
         col_id_idx = cabecalhos.index("ID") + 1
@@ -181,7 +179,7 @@ def atualizar_status_lote_por_id():
         ids = [str(i).strip() for i in dados.get('ids', [])]
         novo_status = str(dados.get('status', 'Não')).strip()
         gc = conectar_google_sheets()
-        aba = gc.open(NOME_PLANILHA_MOVIMENTACAO).worksheet(data_consulta)
+        aba = gc.open(NOME_PLANILHA).worksheet(data_consulta)
         linhas = aba.get_all_values()
         cabecalhos = [str(c).strip().upper() for c in linhas[0]]
         col_id = cabecalhos.index("ID") + 1
