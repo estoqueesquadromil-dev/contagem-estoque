@@ -196,3 +196,26 @@ def atualizar_status_lote_por_id():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+
+
+
+
+@app.route('/teste_planilha', methods=['GET'])
+def teste_planilha():
+    try:
+        gc = conectar_google_sheets()
+        if not gc:
+            return "ERRO: Falha ao autenticar com o Google Sheets (verifique as credenciais)."
+        
+        planilha = gc.open(NOME_PLANILHA)
+        sheet = planilha.worksheet('dados')
+        dados = sheet.get_all_records()
+        
+        if not dados:
+            return "AVISO: A aba 'dados' foi encontrada, mas está vazia!"
+            
+        # Retorna as primeiras 5 linhas para vermos na tela
+        return f"SUCESSO! Total de linhas na aba 'dados': {len(dados)}<br><br>Exemplo dos primeiros dados lidos:<br>{str(dados[:5])}"
+    except Exception as e:
+        return f"ERRO CRITICO AO LER A PLANILHA: {str(e)}"
