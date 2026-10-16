@@ -2,6 +2,7 @@ import os
 import uuid
 import gspread
 from flask import Flask, render_template, request, jsonify
+import json
 
 app = Flask(__name__)
 
@@ -9,12 +10,21 @@ PLANILHA_ID = '1HPkjEtFRClBqk3_yD4LGe9pA3L6XrHaaUikGh57Q'
 
 def conectar_google_sheets():
     try:
-        return gspread.service_account(filename='credenciais.json')
+        # Se estiver no Render, lê a chave secreta das variáveis de ambiente
+        if "GOOGLE_CREDENTIALS_JSON" in os.environ:
+            creds_dict = json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
+            gc = gspread.service_account_from_dict(creds_dict)
+        else:
+            # Se estiver no teu PC, lê o ficheiro local
+            gc = gspread.service_account(filename='credenciais.json')
+        return gc
     except Exception as e:
         print(f"[ERRO] Falha ao autenticar: {e}")
         return None
 
-@app.route('/')
+
+
+
 def index_contagem():
     return render_template('contagem_estoque.html')
 
