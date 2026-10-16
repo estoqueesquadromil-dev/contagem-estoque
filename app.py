@@ -179,23 +179,52 @@ def salvar_lote():
 def consultar_movimentacao():
     try:
         data_consulta = request.args.get('data') # Ex: "10/2026"
+        nome_aba_saldo = f"SALDO_{data_consulta.replace('/', '_')}"
+        
         gc = conectar_google_sheets()
         planilha = gc.open(NOME_PLANILHA)
 
+        # 1. Carregar o dicionário de saldos da aba SALDO_MM_YYYY para consulta rápida
+        saldos_dict = {}
+        try:
+            aba_saldo = planilha.worksheet(nome_aba_saldo)
+            registros_saldo = aba_saldo.get_all_values()
+            for linha in registros_saldo[1:]:  # Pula o cabeçalho
+                if len(linha) >= 2:
+                    cod = str(linha[0]).strip().upper()
+                    sld = int(linha[1]) if str(linha[1]).isdigit() or (str(linha[1]).startswith('-') and str(linha[1][1:]).isdigit()) else 0
+                    saldos_dict[cod] = sld
+        except Exception:
+            pass # Se a aba de saldo ainda não existir, o saldo será 0
+
+        # 2. Carregar os itens da movimentação da aba do mês
         try:
             sheet_mov = planilha.worksheet(data_consulta)
             registros = sheet_mov.get_all_records()
             
             itens_formatados = []
-            for r in registros:
+            updates_necessarios = []
+
+            for idx, r in enumerate(registros, start=2): # start=2 porque a linha 1 é o cabeçalho
+                codigo = str(r.get("Código", "")).strip()
+                codigo_upper = codigo.upper()
+                
+                # Pega o saldo real diretamente da aba de saldo correspondente
+                saldo_estoque = saldos_dict.get(codigo_upper, 0)
+                
+                qtd = r.get("Quantidade Contada", r.get("Quantidade", 0))
+                qtd_int = int(qtd) if str(qtd).isdigit() or (str(qtd).startswith('-') and str(qtd)[1:].isdigit()) else 0
+                
+                # Recalcula a diferença correta (Quantidade Contada - Saldo de Estoque)
+                diferenca = qtd_int - saldo_estoque
+
                 itens_formatados.append({
                     "ID": str(r.get("ID", "")),
                     "Data": str(r.get("Data", "")),
-                    "Código": str(r.get("Código", "")),
-                    "SaldoEstoque": r.get("Saldo Estoque", 0),
-                    # Lê considerando possíveis variações do nome da coluna na planilha
-                    "Quantidade": r.get("Quantidade Contada", r.get("Quantidade", 0)),
-                    "Diferenca": r.get("Diferenca", 0),
+                    "Código": codigo,
+                    "SaldoEstoque": saldo_estoque,
+                    "Quantidade": qtd_int,
+                    "Diferenca": diferenca,
                     "Tipo": str(r.get("Tipo", "Contagem")),
                     "Inventario Feito": str(r.get("Inventario Feito", "Não"))
                 })
@@ -205,6 +234,7 @@ def consultar_movimentacao():
             return jsonify({"sucesso": True, "itens": []})
 
     except Exception as e:
+        print(f"Erro ao consultar movimentação: {e}")
         return jsonify({"sucesso": False, "mensagem": str(e)})
 
 
