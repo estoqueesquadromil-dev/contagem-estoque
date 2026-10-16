@@ -39,20 +39,21 @@ def carregar_base_produtos():
         
         produtos_cache = []
         codigos_validos_set = set()
-        codigos_vistos = set() # Evita duplicados no autocomplete
+        codigos_vistos = set()
         
         for row in dados:
-            codigo = str(row.get('PRODUTO') or row.get('Produto') or row.get('CODIGO') or row.get('Codigo') or '').strip()
-            descricao = str(row.get('DESCRICAO') or row.get('Descrição') or row.get('descricao') or '').strip()
+            # Pega exatamente a coluna 'PRODUTO' e 'DESCRICAO'
+            codigo = str(row.get('PRODUTO', '')).strip()
+            descricao = str(row.get('DESCRICAO', '')).strip()
             
-            if codigo and codigo.lower() != 'nan':
+            if codigo and codigo.upper() != 'NAN':
                 cod_upper = codigo.upper()
                 if cod_upper not in codigos_vistos:
                     codigos_vistos.add(cod_upper)
                     produtos_cache.append({'codigo': codigo, 'descricao': descricao})
                     codigos_validos_set.add(codigo)
                 
-        print(f"[INFO] {len(produtos_cache)} produtos únicos carregados para o cache!")
+        print(f"[INFO] {len(produtos_cache)} produtos únicos carregados com sucesso!")
     except Exception as e:
         print(f"[ERRO CRITICO] Falha ao carregar produtos: {e}")
 
@@ -68,16 +69,18 @@ def buscar_produtos():
     if not termo:
         return jsonify([])
     
-    # Se por algum motivo o cache estiver vazio, recarrega os dados
+    # Se o cache estiver vazio por algum motivo, força o carregamento
     if not produtos_cache:
         carregar_base_produtos()
     
     resultados = []
     for p in produtos_cache:
+        # Procura tanto no código quanto na descrição
         if termo in p['codigo'].lower() or termo in p['descricao'].lower():
             resultados.append(p)
-            if len(resultados) >= 20: # Limita a 20 sugestões para ser rápido
+            if len(resultados) >= 20:
                 break
+                
     return jsonify(resultados)
 
 
