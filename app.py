@@ -198,3 +198,12 @@ def atualizar_status_lote_por_id():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+
+
+@app.route('/teste_produtos_cache', methods=['GET'])
+def teste_produtos_cache():
+    return jsonify({
+        "total_carregados": len(produtos_cache),
+        "exemplos": produtos_cache[:5] if produtos_cache else []
+    })
