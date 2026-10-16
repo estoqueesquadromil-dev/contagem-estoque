@@ -1,9 +1,9 @@
 import json
 import os
-from flask import Flask, render_template, request, jsonify, Response
 import pandas as pd
 import gspread
-from datetime import datetime
+import uuid
+from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
 
@@ -15,12 +15,10 @@ codigos_validos_set = set()
 
 def conectar_google_sheets():
     try:
-        # Se estiver no Render, usa a chave configurada na variável de ambiente
         if "GOOGLE_CREDENTIALS_JSON" in os.environ:
             creds_dict = json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
             gc = gspread.service_account_from_dict(creds_dict)
         else:
-            # Caso estejas a testar localmente com o arquivo físico
             gc = gspread.service_account(filename='credenciais.json')
         return gc
     except Exception as e:
@@ -35,7 +33,6 @@ def carregar_base_produtos():
             return
         
         planilha = gc.open(NOME_PLANILHA_PRODUTOS)
-        # Abre explicitamente a aba chamada 'dados'
         sheet = planilha.worksheet('dados')
         dados = sheet.get_all_records()
         df = pd.DataFrame(dados)
@@ -43,7 +40,8 @@ def carregar_base_produtos():
         produtos_cache = []
         codigos_validos_set = set()
         for _, row in df.iterrows():
-            codigo = str(row.get('CODIGO', '')).strip()
+            # Aceita a coluna 'PRODUTO' ou 'CODIGO'
+            codigo = str(row.get('PRODUTO', row.get('CODIGO', ''))).strip()
             descricao = str(row.get('DESCRICAO', '')).strip()
             if codigo and codigo != 'nan':
                 produtos_cache.append({'codigo': codigo, 'descricao': descricao})
@@ -53,7 +51,7 @@ def carregar_base_produtos():
     except Exception as e:
         print(f"[ERRO] Falha ao carregar produtos: {e}")
 
-# Carrega os produtos ao iniciar a aplicação
+# Carrega a base de produtos
 carregar_base_produtos()
 
 @app.route('/')
@@ -77,7 +75,7 @@ def buscar_produtos():
 @app.route('/salvar_lote', methods=['POST'])
 def salvar_lote():
     dados = request.json
-    data_lote = dados.get('data') # Recebe o formato "MM/AAAA" vindo dos seletores
+    data_lote = dados.get('data') # Exemplo: "10/2026"
     itens = dados.get('itens', [])
 
     if not data_lote or not itens:
@@ -98,11 +96,9 @@ def salvar_lote():
 
         planilha_mov = gc.open(NOME_PLANILHA_MOVIMENTACAO)
         
-        import uuid
         try:
             sheet_mov = planilha_mov.worksheet(data_lote)
         except gspread.exceptions.WorksheetNotFound:
-            # Cria a aba com o nome do Mês/Ano (ex: 10/2026)
             sheet_mov = planilha_mov.add_worksheet(title=data_lote, rows="1000", cols="7")
             sheet_mov.append_row(["ID", "Data", "Código", "Quantidade", "Tipo", "Status", "Inventario Feito"])
 
