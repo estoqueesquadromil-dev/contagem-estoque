@@ -116,13 +116,14 @@
             <thead>
               <tr>
                 <th>Código</th>
-                <th>Descrição</th>
-                <th>Quantidade</th>
+                <th>Saldo Estoque</th>
+                <th>Quantidade Contada</th>
+                <th>Diferença</th>
                 <th style="width: 100px;">Ações</th>
               </tr>
             </thead>
             <tbody id="corpoTabela">
-              <tr><td colspan="4" class="text-center text-muted">Nenhum item adicionado.</td></tr>
+              <tr><td colspan="5" class="text-center text-muted">Nenhum item adicionado.</td></tr>
             </tbody>
           </table>
         </div>
@@ -294,13 +295,15 @@ function adicionarItem() {
     return;
   }
 
-  const desc = produtoSelecionado ? produtoSelecionado.descricao : '';
   const qtd = parseInt(document.getElementById('inputQtd').value) || 1;
+  const saldo = saldoItemAtual;
+  const diferenca = qtd - saldo;
 
   listaLote.push({
     CODIGO: codigoTxt,
-    DESCRICAO: desc,
+    SALDO: saldo,
     QUANTIDADE: qtd,
+    DIFERENCA: diferenca,
     TIPO: 'Contagem'
   });
 
@@ -308,36 +311,43 @@ function adicionarItem() {
   inputProd.value = '';
   document.getElementById('inputQtd').value = 1;
   
-  // Limpa/Zera as informações do painel de saldo após adicionar
   zerarPainelSaldo();
   renderTabela();
   inputProd.focus();
 }
 
-    function renderTabela() {
-      const corpo = document.getElementById('corpoTabela');
-      corpo.innerHTML = '';
-      if (listaLote.length === 0) {
-        corpo.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Nenhum item adicionado.</td></tr>';
-        return;
-      }
-      listaLote.forEach((item, index) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td><strong>${item.CODIGO}</strong></td>
-          <td>${item.DESCRICAO}</td>
-          <td>${item.QUANTIDADE}</td>
-          <td><button class="btn btn-danger btn-sm" onclick="removerItem(${index})">Remover</button></td>
-        `;
-        corpo.appendChild(tr);
-      });
+function renderTabela() {
+  const corpo = document.getElementById('corpoTabela');
+  corpo.innerHTML = '';
+
+  if (listaLote.length === 0) {
+    corpo.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Nenhum item adicionado.</td></tr>';
+    return;
+  }
+
+  listaLote.forEach((item, index) => {
+    const tr = document.createElement('tr');
+    
+    // Cor da diferença
+    let corDifClass = 'text-primary';
+    let difTexto = item.DIFERENCA;
+    if (item.DIFERENCA < 0) {
+      corDifClass = 'text-danger fw-bold';
+    } else if (item.DIFERENCA > 0) {
+      corDifClass = 'text-success fw-bold';
+      difTexto = `+${item.DIFERENCA}`;
     }
 
-    function removerItem(index) {
-      listaLote.splice(index, 1);
-      renderTabela();
-    }
-
+    tr.innerHTML = `
+      <td><strong>${item.CODIGO}</strong></td>
+      <td><span class="badge bg-secondary">${item.SALDO}</span></td>
+      <td><strong>${item.QUANTIDADE}</strong></td>
+      <td><span class="${corDifClass}">${difTexto}</span></td>
+      <td><button class="btn btn-danger btn-sm" onclick="removerItem(${index})">Remover</button></td>
+    `;
+    corpo.appendChild(tr);
+  });
+}
 
 
 
