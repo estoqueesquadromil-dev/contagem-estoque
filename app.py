@@ -176,39 +176,43 @@ def salvar_lote():
 
 
 
+@app.route('/consultar_movimentacao', methods=['GET'])
 def consultar_movimentacao():
-    data_consulta = request.args.get('data', '').strip()
-    if not data_consulta:
-        return jsonify({'sucesso': False, 'mensagem': 'Mês/Ano não informado!'})
-
     try:
+        data_consulta = request.args.get('data') # Ex: "10/2026"
         gc = conectar_google_sheets()
         planilha = gc.open(NOME_PLANILHA)
+
         try:
             sheet_mov = planilha.worksheet(data_consulta)
-        except gspread.exceptions.WorksheetNotFound:
-            return jsonify({'sucesso': True, 'itens': []})
-
-        linhas = sheet_mov.get_all_values()
-        if not linhas or len(linhas) < 2:
-            return jsonify({'sucesso': True, 'itens': []})
-
-        itens = []
-        for idx in range(1, len(linhas)):
-            row = linhas[idx]
-            if any(row):
-                itens.append({
-                    "ID": row[0] if len(row) > 0 else '',
-                    "Data": row[1] if len(row) > 1 else '',
-                    "Código": row[2] if len(row) > 2 else '',
-                    "Quantidade": row[3] if len(row) > 3 else '',
-                    "Tipo": row[4] if len(row) > 4 else '',
-                    "Status": row[5] if len(row) > 5 else 'Não'
+            registros = sheet_mov.get_all_records() # Retorna dicionários baseados no cabeçalho
+            
+            # Mapeia os dados garantindo as chaves corretas para o frontend
+            itens_formatados = []
+            for r in registros:
+                itens_formatados.append({
+                    "ID": str(r.get("ID", "")),
+                    "Data": str(r.get("Data", "")),
+                    "Código": str(r.get("Código", "")),
+                    "SaldoEstoque": r.get("Saldo Estoque", 0),
+                    "Quantidade": r.get("Quantidade Contada", r.get("Quantidade", 0)),
+                    "Diferenca": r.get("Diferenca", 0),
+                    "Tipo": str(r.get("Tipo", "Contagem")),
+                    "Status": str(r.get("Status", "Não")),
+                    "Inventario Feito": str(r.get("Inventario Feito", "Não"))
                 })
 
-        return jsonify({'sucesso': True, 'itens': itens})
+            return jsonify({"sucesso": True, "itens": itens_formatados})
+        except gspread.exceptions.WorksheetNotFound:
+            return jsonify({"sucesso": True, "itens": []})
+
     except Exception as e:
-        return jsonify({'sucesso': False, 'mensagem': f'Erro: {str(e)}'})
+        return jsonify({"sucesso": False, "mensagem": str(e)})
+
+
+
+
+
 
 # --- ROTA PARA EXCLUIR MOVIMENTAÇÃO ---
 @app.route('/excluir_movimentacao', methods=['POST'])
