@@ -61,7 +61,7 @@
 
   <main class="main-content" id="mainContent">
     
-    <!-- SEÇÃO 1: LANÇAR -->
+<!-- SEÇÃO 1: LANÇAR -->
     <section id="sec-lancar" class="page-section active">
       <div class="card p-4 mb-4">
         <h4 class="text-primary mb-3">Lançar Nova Contagem</h4>
@@ -69,7 +69,7 @@
         <div class="row mb-3">
           <div class="col-md-6">
             <label class="form-label fw-semibold">Mês da Contagem:</label>
-            <select id="selectMes" class="form-select">
+            <select id="selectMes" class="form-select" onchange="consultarSaldoItemAtual()">
               <option value="01">01 - Janeiro</option><option value="02">02 - Fevereiro</option><option value="03">03 - Março</option>
               <option value="04">04 - Abril</option><option value="05">05 - Maio</option><option value="06">06 - Junho</option>
               <option value="07">07 - Julho</option><option value="08">08 - Agosto</option><option value="09">09 - Setembro</option>
@@ -78,13 +78,13 @@
           </div>
           <div class="col-md-6">
             <label class="form-label fw-semibold">Ano:</label>
-            <select id="selectAno" class="form-select">
+            <select id="selectAno" class="form-select" onchange="consultarSaldoItemAtual()">
               <option value="2026" selected>2026</option><option value="2027">2027</option><option value="2028">2028</option>
             </select>
           </div>
         </div>
 
-        <div class="row g-2 mb-3">
+        <div class="row g-2 mb-2">
           <div class="col-md-6 position-relative">
             <label class="form-label fw-semibold">Código do Produto:</label>
             <input type="text" id="inputProduto" class="form-control" placeholder="Digite o código ou descrição..." autocomplete="off">
@@ -92,14 +92,26 @@
           </div>
           <div class="col-md-3">
             <label class="form-label fw-semibold">Quantidade:</label>
-            <input type="number" id="inputQtd" class="form-control" value="1" min="1">
+            <input type="number" id="inputQtd" class="form-control" value="1" min="1" oninput="calcularDiferencaSaldo()">
           </div>
           <div class="col-md-3 d-flex align-items-end">
             <button class="btn btn-success w-100 fw-bold" onclick="adicionarItem()"><i class="bi bi-plus-lg"></i> Adicionar</button>
           </div>
         </div>
 
-        <div class="table-responsive">
+        <!-- PAINEL DE INFORMAÇÕES DO SALDO DE ESTOQUE DA PESQUISA -->
+        <div id="painelSaldo" class="alert alert-secondary py-2 px-3 my-3 d-flex justify-content-around align-items-center rounded-3">
+          <div>
+            <small class="text-muted d-block fw-semibold">Saldo em Estoque:</small>
+            <span id="txtSaldoItem" class="fw-bold fs-5 text-dark">0</span>
+          </div>
+          <div class="border-start ps-4">
+            <small class="text-muted d-block fw-semibold">Diferença (Qtd Contada - Saldo):</small>
+            <span id="txtDiferencaSaldo" class="fw-bold fs-5 text-primary">0</span>
+          </div>
+        </div>
+
+        <div class="table-responsive mt-2">
           <table class="table table-striped align-middle">
             <thead>
               <tr>
@@ -274,30 +286,33 @@
       }
     });
 
-    function adicionarItem() {
-      const codigoTxt = inputProd.value.trim();
+function adicionarItem() {
+  const codigoTxt = inputProd.value.trim();
 
-      if (!codigoTxt) {
-        alert('Digite ou selecione um código!');
-        return;
-      }
+  if (!codigoTxt) {
+    alert('Digite ou selecione um código!');
+    return;
+  }
 
-      const desc = produtoSelecionado ? produtoSelecionado.descricao : '';
-      const qtd = parseInt(document.getElementById('inputQtd').value) || 1;
+  const desc = produtoSelecionado ? produtoSelecionado.descricao : '';
+  const qtd = parseInt(document.getElementById('inputQtd').value) || 1;
 
-      listaLote.push({
-        CODIGO: codigoTxt,
-        DESCRICAO: desc,
-        QUANTIDADE: qtd,
-        TIPO: 'Contagem'
-      });
+  listaLote.push({
+    CODIGO: codigoTxt,
+    DESCRICAO: desc,
+    QUANTIDADE: qtd,
+    TIPO: 'Contagem'
+  });
 
-      produtoSelecionado = null;
-      inputProd.value = '';
-      document.getElementById('inputQtd').value = 1;
-      renderTabela();
-      inputProd.focus();
-    }
+  produtoSelecionado = null;
+  inputProd.value = '';
+  document.getElementById('inputQtd').value = 1;
+  
+  // Limpa/Zera as informações do painel de saldo após adicionar
+  zerarPainelSaldo();
+  renderTabela();
+  inputProd.focus();
+}
 
     function renderTabela() {
       const corpo = document.getElementById('corpoTabela');
@@ -545,7 +560,71 @@ consultarMovimentacao = function() {
 
 
 
+let saldoItemAtual = 0;
 
+// Busca o saldo do item pesquisado na aba SALDO_MM_YYYY do Sheets
+async function consultarSaldoItemAtual() {
+  const codigo = inputProd.value.trim();
+  const mes = document.getElementById('selectMes').value;
+  const ano = document.getElementById('selectAno').value;
+  const dataConsulta = `${mes}/${ano}`;
+
+  if (!codigo) {
+    zerarPainelSaldo();
+    return;
+  }
+
+  try {
+    const res = await fetch(`/obter_saldo_item?codigo=${encodeURIComponent(codigo)}&data=${encodeURIComponent(dataConsulta)}`);
+    const dados = await res.json();
+
+    if (dados.sucesso) {
+      saldoItemAtual = parseFloat(dados.saldo) || 0;
+      document.getElementById('txtSaldoItem').innerText = saldoItemAtual;
+      calcularDiferencaSaldo();
+    } else {
+      saldoItemAtual = 0;
+      document.getElementById('txtSaldoItem').innerText = '0';
+      calcularDiferencaSaldo();
+    }
+  } catch (e) {
+    console.error(e);
+    zerarPainelSaldo();
+  }
+}
+
+// Calcula a diferença entre a quantidade digitada e o saldo em estoque
+function calcularDiferencaSaldo() {
+  const qtdDigitada = parseFloat(document.getElementById('inputQtd').value) || 0;
+  const dif = qtdDigitada - saldoItemAtual;
+  
+  const elemDif = document.getElementById('txtDiferencaSaldo');
+  elemDif.innerText = dif > 0 ? `+${dif}` : dif;
+
+  // Destaque de cor (Verde se positivo, Vermelho se negativo)
+  if (dif < 0) {
+    elemDif.className = 'fw-bold fs-5 text-danger';
+  } else if (dif > 0) {
+    elemDif.className = 'fw-bold fs-5 text-success';
+  } else {
+    elemDif.className = 'fw-bold fs-5 text-primary';
+  }
+}
+
+
+    
+// Zera os valores do painel
+function zerarPainelSaldo() {
+  saldoItemAtual = 0;
+  document.getElementById('txtSaldoItem').innerText = '0';
+  document.getElementById('txtDiferencaSaldo').innerText = '0';
+  document.getElementById('txtDiferencaSaldo').className = 'fw-bold fs-5 text-primary';
+}
+
+// Atualizar no evento de escolha do Autocomplete
+inputProd.addEventListener('blur', function() {
+  setTimeout(() => consultarSaldoItemAtual(), 200);
+});
 
 
 
