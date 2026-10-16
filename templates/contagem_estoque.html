@@ -306,14 +306,16 @@
 
 
 
+let bloqueadoEnvio = false;
+
 async function salvarLote() {
-    // Se já estiver enviando, bloqueia imediatamente qualquer clique extra
+    // 1. Evita cliques múltiplos simultâneos
     if (bloqueadoEnvio) return;
     bloqueadoEnvio = true;
 
     const btnSalvar = document.getElementById('btnSalvar');
-    
-    // Evita duplo clique desativando e alterando o visual
+
+    // 2. Trava o botão visualmente
     if (btnSalvar) {
         btnSalvar.disabled = true;
         btnSalvar.dataset.textoOriginal = btnSalvar.innerText;
@@ -324,12 +326,27 @@ async function salvarLote() {
     }
 
     try {
+        // Obter os valores dos selects de mês e ano da tela
+        const mesElem = document.getElementById('mesContagem') || document.querySelector('select:nth-of-type(1)');
+        const anoElem = document.getElementById('anoContagem') || document.querySelector('select:nth-of-type(2)');
+        
+        // Pega os valores ou ajusta para o formato 'MM/YYYY' (ex: '10/2026')
+        const mes = mesElem ? mesElem.value : '10';
+        const ano = anoElem ? anoElem.value : '2026';
+        const dataFormatada = `${mes}/${ano}`;
+
+        // Verifica se existem itens adicionados na lista (itensTabela)
+        if (typeof itensTabela === 'undefined' || itensTabela.length === 0) {
+            alert('Adicione pelo menos um item antes de salvar!');
+            return;
+        }
+
         const resposta = await fetch('/salvar_lote', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                data: dataLote,  // Sua variável de data
-                itens: listaItens // Sua lista de itens
+                data: dataFormatada,
+                itens: itensTabela // Usa a variável de itens do seu formulário
             })
         });
 
@@ -337,26 +354,29 @@ async function salvarLote() {
 
         if (resultado.sucesso) {
             alert(resultado.mensagem);
-            // Limpar lista/tela se necessário
+            // Limpa a tabela se existir a função de limpar
+            if (typeof limparTabela === 'function') {
+                limparTabela();
+            }
         } else {
             alert("Atenção: " + resultado.mensagem);
         }
     } catch (erro) {
+        console.error("Erro ao salvar:", erro);
         alert("Erro de conexão ao salvar!");
     } finally {
-        // Libera o travamento e restaura o botão ao estado normal
+        // 3. Libera o bloqueio e restaura o botão
         bloqueadoEnvio = false;
-        
+
         if (btnSalvar) {
             btnSalvar.disabled = false;
-            btnSalvar.innerText = btnSalvar.dataset.textoOriginal || "Salvar Lote";
+            btnSalvar.innerText = btnSalvar.dataset.textoOriginal || "Salvar Contagem";
             btnSalvar.style.opacity = "1";
             btnSalvar.style.cursor = "pointer";
             btnSalvar.style.pointerEvents = "auto";
         }
     }
 }
-
 
     
     async function consultarMovimentacao() {
