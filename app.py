@@ -199,31 +199,16 @@ def teste_direto_planilha():
         if not gc:
             return jsonify({"sucesso": False, "erro": "Falha na autenticação do Google Sheets"})
         
-        # Lista todas as planilhas que o bot consegue ver na conta dele
-        planilhas_disponiveis = [p['name'] for p in gc.list_spreadsheet_files()]
-        
-        # Tenta abrir pelo ID exato
-        planilha_id = '1HPkjEtFRClBqk3_yD4LGe9pA3L6XrHaaUikGh57Q'
-        
-        planilha = gc.open_by_key(planilha_id)
+        # Abre diretamente pelo nome exato que aparece na lista do bot
+        planilha = gc.open('contagem_semi_acabado')
         sheet = planilha.worksheet('dados')
         linhas = sheet.get_all_values()
         
         return jsonify({
             "sucesso": True,
-            "planilhas_visiveis_pelo_bot": planilhas_disponiveis,
-            "total_linhas": len(linhas)
+            "nome_planilha": planilha.title,
+            "total_linhas": len(linhas),
+            "primeira_linha": linhas[0] if len(linhas) > 0 else []
         })
     except Exception as e:
-        # Devolve o erro detalhado e a lista de o que o bot realmente enxerga
-        try:
-            gc = conectar_google_sheets()
-            visiveis = [p['name'] for p in gc.list_spreadsheet_files()]
-        except:
-            visiveis = []
-            
-        return jsonify({
-            "sucesso": False, 
-            "erro": str(e),
-            "planilhas_que_o_bot_consegue_ver": visiveis
-        })
+        return jsonify({"sucesso": False, "erro": str(e)})
