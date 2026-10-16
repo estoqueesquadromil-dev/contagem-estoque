@@ -46,7 +46,8 @@ def buscar_produtos():
         if not gc:
             return jsonify([])
             
-        planilha = gc.open_by_key(PLANILHA_ID)
+        # Abre diretamente pelo nome exato da planilha
+        planilha = gc.open('contagem_semi_acabado')
         sheet = planilha.worksheet('dados')
         dados = sheet.get_all_values()
         
@@ -56,7 +57,7 @@ def buscar_produtos():
         resultados = []
         codigos_vistos = set()
 
-        # Lê diretamente da linha 2 em diante (ignora o cabeçalho)
+        # Lê da linha 2 em diante (A = Código/PRODUTO, B = DESCRIÇÃO)
         for linha in dados[1:]:
             if len(linha) >= 1:
                 codigo = str(linha[0]).strip()
@@ -75,7 +76,8 @@ def buscar_produtos():
         print(f"[ERRO BUSCA]: {e}")
         return jsonify([])
 
-@app.route('/salvar_lote', methods=['POST'])
+
+
 def salvar_lote():
     dados = request.json
     data_lote = dados.get('data')
@@ -197,9 +199,9 @@ def teste_direto_planilha():
     try:
         gc = conectar_google_sheets()
         if not gc:
-            return jsonify({"sucesso": False, "erro": "Falha na autenticação do Google Sheets"})
+            return jsonify({"sucesso": False, "erro": "Falha na autenticação com o Google Sheets"})
         
-        # Abre diretamente pelo nome exato que aparece na lista do bot
+        # Abre diretamente pelo nome que o bot enxerga
         planilha = gc.open('contagem_semi_acabado')
         sheet = planilha.worksheet('dados')
         linhas = sheet.get_all_values()
@@ -208,7 +210,7 @@ def teste_direto_planilha():
             "sucesso": True,
             "nome_planilha": planilha.title,
             "total_linhas": len(linhas),
-            "primeira_linha": linhas[0] if len(linhas) > 0 else []
+            "cabecalho": linhas[0] if len(linhas) > 0 else []
         })
     except Exception as e:
         return jsonify({"sucesso": False, "erro": str(e)})
