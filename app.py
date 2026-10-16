@@ -3,6 +3,8 @@ import uuid
 import gspread
 from flask import Flask, render_template, request, jsonify
 import json
+from google.oauth2.service_account import Credentials
+
 
 app = Flask(__name__)
 
@@ -10,18 +12,23 @@ PLANILHA_ID = '1HPkjEtFRClBqk3_yD4LGe9pA3L6XrHaaUikGh57Q'
 
 def conectar_google_sheets():
     try:
-        # Se estiver no Render, lê a chave secreta das variáveis de ambiente
+        # Define os escopos necessários para ler o Google Sheets e Drive
+        scopes = [
+            'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/drive'
+        ]
+        
         if "GOOGLE_CREDENTIALS_JSON" in os.environ:
             creds_dict = json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
-            gc = gspread.service_account_from_dict(creds_dict)
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         else:
-            # Se estiver no teu PC, lê o ficheiro local
-            gc = gspread.service_account(filename='credenciais.json')
+            creds = Credentials.from_service_account_file('credenciais.json', scopes=scopes)
+            
+        gc = gspread.authorize(creds)
         return gc
     except Exception as e:
         print(f"[ERRO] Falha ao autenticar: {e}")
         return None
-
 
 
 
