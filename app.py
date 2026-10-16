@@ -272,17 +272,22 @@ if __name__ == '__main__':
 
 
 
+# --- ROTA PARA SALVAR O SALDO DE ESTOQUE ---
 @app.route('/salvar_saldo', methods=['POST'])
 def salvar_saldo():
     try:
         dados = request.json
-        data_mes_ano = dados.get('data') # Ex: "10/2026"
+        data_mes_ano = dados.get('data')  # Ex: "10/2026"
         texto_colado = dados.get('texto', '')
 
-        # Cria o nome da aba automaticamente (ex: SALDO_10_2026)
+        if not data_mes_ano or not texto_colado:
+            return jsonify({'sucesso': False, 'mensagem': 'Dados incompletos!'})
+
+        # Nome da aba formatado conforme solicitado (ex: SALDO_10_2026)
         nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
         agora = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
 
+        # Processar as linhas coladas (separando código e saldo por TAB ou espaço)
         linhas_processadas = []
         for linha in texto_colado.strip().split('\n'):
             linha_limpa = linha.strip()
@@ -300,17 +305,18 @@ def salvar_saldo():
         if not linhas_processadas:
             return jsonify({"sucesso": False, "mensagem": "Nenhum dado válido encontrado no texto colado!"})
 
-        # >>> USE AQUI A VARIÁVEL/FUNÇÃO QUE O SEU APP.PY JÁ USA PARA ACEDER À PLANILHA <<<
-        # (Por exemplo: sheet, client.open("contagem_semi_acabado"), etc.)
-        planilha = sheet # Ajuste para o nome que já funciona nas outras rotas do seu app.py
+        # Conexão correta usando a função padrão do seu projeto
+        gc = conectar_google_sheets()
+        planilha = gc.open(NOME_PLANILHA)
 
-        # O sistema verifica se a aba existe; se não existir, ele cria automaticamente!
+        # O sistema verifica se a aba existe; se não existir, cria automaticamente
         try:
             aba = planilha.worksheet(nome_aba)
-            aba.clear() 
-        except Exception:
+            aba.clear()  # Limpa os dados antigos para atualizar com o novo saldo colado
+        except gspread.exceptions.WorksheetNotFound:
             aba = planilha.add_worksheet(title=nome_aba, rows="1000", cols="3")
 
+        # Escreve o cabeçalho e todas as linhas processadas de uma vez
         matriz_final = [["CODIGO", "SALDO", "ULTIMA ATUALIZACAO"]] + linhas_processadas
         aba.update('A1', matriz_final)
 
@@ -324,14 +330,15 @@ def salvar_saldo():
         return jsonify({"sucesso": False, "mensagem": f"Erro interno: {str(e)}"}), 500
 
 
+# --- ROTA PARA OBTER O SALDO E A DATA/HORA DA ÚLTIMA ATUALIZAÇÃO ---
 @app.route('/obter_saldo', methods=['GET'])
 def obter_saldo():
     try:
         data_mes_ano = request.args.get('data')
         nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
 
-        # >>> MESMO AQUI: Use a mesma variável/função de conexão do seu app.py <<<
-        planilha = sheet 
+        gc = conectar_google_sheets()
+        planilha = gc.open(NOME_PLANILHA)
 
         try:
             aba = planilha.worksheet(nome_aba)
@@ -341,7 +348,7 @@ def obter_saldo():
                 linhas_texto = []
                 ultima_atualizacao = registros[1][2] if len(registros[1]) >= 3 else ''
                 
-                for r in registros[1:]: 
+                for r in registros[1:]:  # Ignora o cabeçalho
                     if len(r) >= 2:
                         linhas_texto.append(f"{r[0]}\t{r[1]}")
                 
