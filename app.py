@@ -171,3 +171,28 @@ def atualizar_status_lote_por_id():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+
+
+
+@app.route('/teste_direto_planilha', methods=['GET'])
+def teste_direto_planilha():
+    try:
+        gc = conectar_google_sheets()
+        if not gc:
+            return jsonify({"sucesso": False, "erro": "Falha na autenticação do Google Sheets (verifique as credenciais)"})
+        
+        planilha = gc.open_by_key('1HPkjEtFRClBqk3_yD4LGe9pA3L6XrHaaUikGh57Q')
+        sheet = planilha.worksheet('dados')
+        
+        # Pega apenas as primeiras 5 linhas para teste rápido
+        linhas = sheet.get_all_values()
+        
+        return jsonify({
+            "sucesso": True,
+            "total_linhas_encontradas": len(linhas),
+            "cabecalho": linhas[0] if len(linhas) > 0 else [],
+            "primeiro_produto": linhas[1] if len(linhas) > 1 else []
+        })
+    except Exception as e:
+        return jsonify({"sucesso": False, "erro": str(e)})
