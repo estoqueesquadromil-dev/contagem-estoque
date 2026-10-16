@@ -20,7 +20,6 @@
     .page-section { display: none; }
     .page-section.active { display: block; }
     
-    /* CAIXA DE SUGESTÕES FLUTUANTE */
     .suggestion-box {
       position: absolute;
       top: 100%;
@@ -183,6 +182,7 @@
   <script>
     let produtoSelecionado = null;
     let listaLote = [];
+    let tempoDigitacao = null;
 
     function toggleSidebar() {
       document.getElementById('sidebar').classList.toggle('collapsed');
@@ -201,28 +201,27 @@
       elem.classList.add('active');
     }
 
-    // AUTOCOMPLETE DINÂMICO
+    // AUTOCOMPLETE DIRETO E SIMPLES
     const inputProd = document.getElementById('inputProduto');
     const caixaSugestoes = document.getElementById('caixaSugestoes');
 
-    if (inputProd && caixaSugestoes) {
-      inputProd.addEventListener('input', async function() {
-        const termo = this.value.trim();
-        caixaSugestoes.innerHTML = '';
-        
-        if (termo.length === 0) {
-          caixaSugestoes.style.display = 'none';
-          produtoSelecionado = null;
-          return;
-        }
+    inputProd.addEventListener('keyup', function() {
+      clearTimeout(tempoDigitacao);
+      const termo = this.value.trim();
 
+      if (termo.length < 2) {
+        caixaSugestoes.style.display = 'none';
+        return;
+      }
+
+      tempoDigitacao = setTimeout(async () => {
         try {
           const res = await fetch(`/buscar_produtos?termo=${encodeURIComponent(termo)}`);
           const produtos = await res.json();
 
+          caixaSugestoes.innerHTML = '';
           if (!produtos || produtos.length === 0) {
             caixaSugestoes.style.display = 'none';
-            produtoSelecionado = null;
             return;
           }
 
@@ -230,53 +229,41 @@
             const div = document.createElement('div');
             div.className = 'suggestion-item';
             div.innerHTML = `<strong>${p.codigo}</strong> - ${p.descricao}`;
-            
-            // Usa mousedown para capturar o clique antes do blur do input
-            div.addEventListener('mousedown', function(e) {
-              e.preventDefault();
-              inputProd.value = `${p.codigo} - ${p.descricao}`;
+            div.onclick = function() {
+              inputProd.value = p.codigo;
               produtoSelecionado = p;
               caixaSugestoes.style.display = 'none';
-            });
-
+            };
             caixaSugestoes.appendChild(div);
           });
 
           caixaSugestoes.style.display = 'block';
         } catch (e) {
-          console.error('Erro ao buscar produtos:', e);
+          console.error(e);
         }
-      });
+      }, 300);
+    });
 
-      document.addEventListener('click', function(e) {
-        if (e.target !== inputProd && !caixaSugestoes.contains(e.target)) {
-          caixaSugestoes.style.display = 'none';
-        }
-      });
-    }
+    document.addEventListener('click', function(e) {
+      if (e.target !== inputProd && !caixaSugestoes.contains(e.target)) {
+        caixaSugestoes.style.display = 'none';
+      }
+    });
 
     function adicionarItem() {
-      const textoDigitado = inputProd.value.trim();
-      
-      // Se não clicou na sugestão, mas escreveu um código válido
-      if (!produtoSelecionado && textoDigitado) {
-        let partes = textoDigitado.split(' - ');
-        produtoSelecionado = {
-          codigo: partes[0].trim(),
-          descricao: partes[1] ? partes[1].trim() : ''
-        };
-      }
+      const codigoTxt = inputProd.value.trim();
 
-      if (!produtoSelecionado || !produtoSelecionado.codigo) {
-        alert('Selecione ou digite um código de produto válido!');
+      if (!codigoTxt) {
+        alert('Digite ou selecione um código!');
         return;
       }
 
+      const desc = produtoSelecionado ? produtoSelecionado.descricao : '';
       const qtd = parseInt(document.getElementById('inputQtd').value) || 1;
 
       listaLote.push({
-        CODIGO: produtoSelecionado.codigo,
-        DESCRICAO: produtoSelecionado.descricao,
+        CODIGO: codigoTxt,
+        DESCRICAO: desc,
         QUANTIDADE: qtd,
         TIPO: 'Contagem'
       });
