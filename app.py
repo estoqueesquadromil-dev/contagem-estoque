@@ -150,9 +150,9 @@ def salvar_lote():
         try:
             sheet_mov = planilha.worksheet(data_lote)
         except gspread.exceptions.WorksheetNotFound:
-            sheet_mov = planilha.add_worksheet(title=data_lote, rows="1000", cols="9")
-            # Cabeçalho ajustado sem a descrição e na nova sequência
-            sheet_mov.append_row(["ID", "Data", "Código", "Saldo Estoque", "Quantidade Contada", "Diferença", "Tipo", "Status", "Inventario Feito"])
+            sheet_mov = planilha.add_worksheet(title=data_lote, rows="1000", cols="8")
+            # Cabeçalho sem a coluna Status, mantendo apenas Inventario Feito
+            sheet_mov.append_row(["ID", "Data", "Código", "Saldo Estoque", "Quantidade Contada", "Diferença", "Tipo", "Inventario Feito"])
 
         linhas_adicionar = []
         for item in itens:
@@ -165,8 +165,7 @@ def salvar_lote():
                 int(item.get('QUANTIDADE', 1)),
                 int(item.get('DIFERENCA', 0)),
                 'Contagem',
-                'Não',
-                'Não'
+                'Não' # Inventario Feito
             ])
 
         sheet_mov.append_rows(linhas_adicionar)
@@ -185,9 +184,8 @@ def consultar_movimentacao():
 
         try:
             sheet_mov = planilha.worksheet(data_consulta)
-            registros = sheet_mov.get_all_records() # Retorna dicionários baseados no cabeçalho
+            registros = sheet_mov.get_all_records()
             
-            # Mapeia os dados garantindo as chaves corretas para o frontend
             itens_formatados = []
             for r in registros:
                 itens_formatados.append({
@@ -195,10 +193,9 @@ def consultar_movimentacao():
                     "Data": str(r.get("Data", "")),
                     "Código": str(r.get("Código", "")),
                     "SaldoEstoque": r.get("Saldo Estoque", 0),
-                    "Quantidade": r.get("Quantidade Contada", r.get("Quantidade", 0)),
+                    "Quantidade": r.get("Quantidade Contada", 0),
                     "Diferenca": r.get("Diferenca", 0),
                     "Tipo": str(r.get("Tipo", "Contagem")),
-                    "Status": str(r.get("Status", "Não")),
                     "Inventario Feito": str(r.get("Inventario Feito", "Não"))
                 })
 
