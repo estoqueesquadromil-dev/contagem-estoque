@@ -1,6 +1,7 @@
 import os
 import uuid
 import json
+import time
 import gspread
 from flask import Flask, render_template, request, jsonify
 from google.oauth2.service_account import Credentials
@@ -10,9 +11,13 @@ app = Flask(__name__)
 # Nome oficial da planilha
 NOME_PLANILHA = 'contagem_semi_acabado'
 
+# --- CACHE EM MEMÓRIA PARA A BUSCA RÁPIDA ---
+CACHE_PRODUTOS = []
+ULTIMA_ATUALIZACAO_CACHE = 0
+TEMPO_CACHE_SEGUNDOS = 600  # Atualiza o cache a cada 10 minutos (600s)
+
 def conectar_google_sheets():
     try:
-        # Define os escopos necessários para ler o Google Sheets e Drive
         scopes = [
             'https://www.googleapis.com/auth/spreadsheets',
             'https://www.googleapis.com/auth/drive'
@@ -30,51 +35,81 @@ def conectar_google_sheets():
         print(f"[ERRO] Falha ao autenticar: {e}")
         return None
 
+def obter_produtos_cached():
+    """Carrega os produtos na memória do servidor e atualiza apenas a cada 10 minutos."""
+    global CACHE_PRODUTOS, ULTIMA_ATUALIZACAO_CACHE
+    agora = time.time()
+    
+    # Se o cache estiver válido e com dados, usa a memória instantaneamente
+    if CACHE_PRODUTOS and (agora - ULTIMA_ATUALIZACAO_CACHE < TEMPO_CACHE_SEGUNDOS):
+        return CACHE_PRODUTOS
+
+    try:
+        print("[CACHE] Carregando produtos do Google Sheets...")
+        gc = conectar_google_sheets()
+        if not gc:
+            return CACHE_PRODUTOS  # Se falhar, devolve o cache antigo
+            
+        planilha = gc.open(NOME_PLANILHA)
+        sheet = planilha.worksheet('dados')
+        dados = sheet.get_all_values()
+
+        novos_produtos = []
+        if len(dados) >= 2:
+            for linha in dados[1:]:
+                if len(linha) >= 1:
+                    codigo = str(linha[0]).strip()
+                    descricao = str(linha[1]).strip() if len(linha) > 1 else ''
+                    if codigo:
+                        novos_produtos.append({
+                            'codigo': codigo,
+                            'descricao': descricao,
+                            'codigo_lower': codigo.lower(),
+                            'descricao_lower': descricao.lower()
+                        })
+
+        CACHE_PRODUTOS = novos_produtos
+        ULTIMA_ATUALIZACAO_CACHE = agora
+        print(f"[CACHE] Carregados {len(CACHE_PRODUTOS)} produtos com sucesso!")
+    except Exception as e:
+        print(f"[ERRO CARREGAR CACHE]: {e}")
+
+    return CACHE_PRODUTOS
+
 # --- ROTA PRINCIPAL DO SITE ---
 @app.route('/')
 def index_contagem():
     return render_template('contagem_estoque.html')
 
-# --- ROTA DE AUTOCOMPLETE (BUSCA) ---
+# --- ROTA DE AUTOCOMPLETE (ULTRA RÁPIDA VIA CACHE) ---
 @app.route('/buscar_produtos', methods=['GET'])
 def buscar_produtos():
     termo = request.args.get('termo', '').lower().strip()
     if not termo:
         return jsonify([])
-    
-    try:
-        gc = conectar_google_sheets()
-        if not gc:
-            return jsonify([])
-            
-        planilha = gc.open(NOME_PLANILHA)
-        sheet = planilha.worksheet('dados')
-        dados = sheet.get_all_values()
-        
-        if len(dados) < 2:
-            return jsonify([])
 
-        resultados = []
-        codigos_vistos = set()
+    produtos = obter_produtos_cached()
+    resultados = []
+    codigos_vistos = set()
 
-        # Lê da linha 2 em diante (A = PRODUTO / Código, B = DESCRICAO)
-        for linha in dados[1:]:
-            if len(linha) >= 1:
-                codigo = str(linha[0]).strip()
-                descricao = str(linha[1]).strip() if len(linha) > 1 else ''
+    for p in produtos:
+        if termo in p['codigo_lower'] or termo in p['descricao_lower']:
+            cod_upper = p['codigo'].upper()
+            if cod_upper not in codigos_vistos:
+                codigos_vistos.add(cod_upper)
+                resultados.append({'codigo': p['codigo'], 'descricao': p['descricao']})
+                if len(resultados) >= 15:
+                    break
 
-                if codigo and (termo in codigo.lower() or termo in descricao.lower()):
-                    cod_upper = codigo.upper()
-                    if cod_upper not in codigos_vistos:
-                        codigos_vistos.add(cod_upper)
-                        resultados.append({'codigo': codigo, 'descricao': descricao})
-                        if len(resultados) >= 15:
-                            break
+    return jsonify(resultados)
 
-        return jsonify(resultados)
-    except Exception as e:
-        print(f"[ERRO BUSCA]: {e}")
-        return jsonify([])
+# --- ROTA PARA FORÇAR ATUALIZAÇÃO DO CACHE (SE ALTERAR A PLANILHA) ---
+@app.route('/atualizar_cache', methods=['GET'])
+def atualizar_cache_manual():
+    global ULTIMA_ATUALIZACAO_CACHE
+    ULTIMA_ATUALIZACAO_CACHE = 0  # Força recarregar no próximo request
+    obter_produtos_cached()
+    return jsonify({"sucesso": True, "total_produtos": len(CACHE_PRODUTOS)})
 
 # --- ROTA PARA SALVAR LOTE ---
 @app.route('/salvar_lote', methods=['POST'])
@@ -196,19 +231,11 @@ def atualizar_status_lote_por_id():
 @app.route('/teste_direto_planilha', methods=['GET'])
 def teste_direto_planilha():
     try:
-        gc = conectar_google_sheets()
-        if not gc:
-            return jsonify({"sucesso": False, "erro": "Falha na autenticação com o Google Sheets"})
-        
-        planilha = gc.open(NOME_PLANILHA)
-        sheet = planilha.worksheet('dados')
-        linhas = sheet.get_all_values()
-        
+        produtos = obter_produtos_cached()
         return jsonify({
             "sucesso": True,
-            "nome_planilha": planilha.title,
-            "total_linhas": len(linhas),
-            "cabecalho": linhas[0] if len(linhas) > 0 else []
+            "total_linhas_cache": len(produtos),
+            "exemplo": produtos[0] if produtos else {}
         })
     except Exception as e:
         return jsonify({"sucesso": False, "erro": str(e)})
