@@ -120,6 +120,7 @@ def atualizar_cache_manual():
 
 # --- ROTA PARA SALVAR LOTE ---
 # --- ROTA PARA SALVAR LOTE COM VALIDAÇÃO DE CÓDIGO ---
+# --- ROTA PARA SALVAR LOTE NA SEQUÊNCIA CORRETA ---
 @app.route('/salvar_lote', methods=['POST'])
 def salvar_lote():
     dados = request.json
@@ -130,11 +131,9 @@ def salvar_lote():
         return jsonify({'sucesso': False, 'mensagem': 'Dados incompletos!'})
 
     try:
-        # Obter a lista atualizada de produtos do cache
         produtos = obter_produtos_cached()
         codigos_validos = {p['codigo'].upper() for p in produtos}
 
-        # Verificar se todos os itens possuem código válido na planilha 'dados'
         for item in itens:
             cod_item = str(item.get('CODIGO', '')).strip().upper()
             if not cod_item:
@@ -151,8 +150,9 @@ def salvar_lote():
         try:
             sheet_mov = planilha.worksheet(data_lote)
         except gspread.exceptions.WorksheetNotFound:
-            sheet_mov = planilha.add_worksheet(title=data_lote, rows="1000", cols="7")
-            sheet_mov.append_row(["ID", "Data", "Código", "Quantidade", "Tipo", "Status", "Inventario Feito"])
+            sheet_mov = planilha.add_worksheet(title=data_lote, rows="1000", cols="9")
+            # Cabeçalho ajustado sem a descrição e na nova sequência
+            sheet_mov.append_row(["ID", "Data", "Código", "Saldo Estoque", "Quantidade Contada", "Diferença", "Tipo", "Status", "Inventario Feito"])
 
         linhas_adicionar = []
         for item in itens:
@@ -161,7 +161,9 @@ def salvar_lote():
                 row_id,
                 data_lote,
                 item.get('CODIGO', ''),
+                int(item.get('SALDO', 0)),
                 int(item.get('QUANTIDADE', 1)),
+                int(item.get('DIFERENCA', 0)),
                 'Contagem',
                 'Não',
                 'Não'
@@ -171,8 +173,6 @@ def salvar_lote():
         return jsonify({'sucesso': True, 'mensagem': f'Gravado com sucesso na aba {data_lote}!'})
     except Exception as e:
         return jsonify({'sucesso': False, 'mensagem': f'Erro ao salvar: {str(e)}'})
-
-
 
 
 
