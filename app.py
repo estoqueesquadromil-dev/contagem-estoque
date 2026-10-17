@@ -492,60 +492,70 @@ def produtos_semi_acabados_faltam():
         if not mes or not ano:
             return jsonify({'sucesso': False, 'mensagem': 'Mês e ano são obrigatórios.'}), 400
             
-        # Formata o nome da aba do mês (ex: 10/2026)
         nome_aba_mes = f"{int(mes):02d}/{ano}"
         
         gc = conectar_google_sheets()
         if not gc:
             return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'}), 500
             
+        # Como a aba "dados" e os meses estão na mesma planilha principal (ex: contagem_semi_acabado)
+        planilha = gc.open(NOME_PLANILHA_MOVIMENTACAO)
+        
         # 1. Carrega todos os produtos oficiais da aba "dados"
-        planilha_produtos = gc.open(NOME_PLANILHA_PRODUTOS)
         try:
-            aba_dados = planilha_produtos.worksheet("dados")
-        except:
-            aba_dados = planilha_produtos.sheet1
+            aba_dados = planilha.worksheet("dados")
+        except Exception:
+            return jsonify({'sucesso': False, 'mensagem': 'Aba "dados" não encontrada na planilha.'}), 400
             
         produtos_oficiais = aba_dados.get_all_records()
         
-        # 2. Tenta abrir a aba do mês na planilha principal de contagem para ver quem já foi contado/tem saldo
-        PLANILHA_CONTAGEM = 'contagem_semi_acabado' # Substitua pelo nome correto da sua planilha principal se necessário
-        try:
-            planilha_contagem = gc.open(PLANILHA_CONTAGEM)
-        except:
-            # Fallback caso utilize a mesma variável global do projeto
-            planilha_contagem = gc.open(NOME_PLANILHA_MOVIMENTACAO)
-            
-        codigos_contados_ou_com_saldo = set()
+        # 2. Mapeia quem já foi contado/tem registo na aba do mês (ex: 10/2026)
+        codigos_contados = set()
         saldos_mes = {}
         
         try:
-            aba_mes = planilha_contagem.worksheet(nome_aba_mes)
+            aba_mes = planilha.worksheet(nome_aba_mes)
             linhas_mes = aba_mes.get_all_values()
             if len(linhas_mes) > 1:
                 cabecalhos_mes = [str(c).strip().upper() for c in linhas_mes[0]]
-                idx_cod = cabecalhos_mes.index("CÓDIGO") if "CÓDIGO" in cabecalhos_mes else (cabecalhos_mes.index("CODIGO") if "CODIGO" in cabecalhos_mes else 1)
-                idx_saldo = cabecalhos_mes.index("SALDO ESTOQUE") if "SALDO ESTOQUE" in cabecalhos_mes else 2
+                
+                # Identifica dinamicamente as colunas de Código e Saldo na aba do mês
+                idx_cod = -1
+                idx_saldo = -1
+                for idx, cab in enumerate(cabecalhos_mes):
+                    if cab in ['CÓDIGO', 'CODIGO']:
+                        idx_cod = idx
+                    elif cab in ['SALDO', 'SALDO ESTOQUE', 'SALDO_ESTOQUE']:
+                        idx_saldo = idx
+                        
+                if idx_cod == -1:
+                    idx_cod = 2 # Posição padrão comum (Coluna C)
+                if idx_saldo == -1:
+                    idx_saldo = 3 # Posição padrão comum (Coluna D)
                 
                 for linha in linhas_mes[1:]:
                     if len(linha) > idx_cod:
                         cod = str(linha[idx_cod]).strip().upper()
                         if cod:
-                            codigos_contados_ou_com_saldo.add(cod)
+                            codigos_contados.add(cod)
                             if len(linha) > idx_saldo:
-                                saldos_mes[cod] = linha[idx_saldo]
+                                saldos_mes[cod] = str(linha[idx_saldo]).strip()
         except Exception:
             # Se a aba do mês ainda não existir, nenhum produto foi contado ainda
             pass
             
-        # 3. Filtra apenas os produtos que ainda NÃO constam na aba do mês
+        # 3. Filtra apenas os produtos da aba "dados" que NÃO estão na aba do mês
         produtos_pendentes = []
         for p in produtos_oficiais:
             cod = str(p.get('CODIGO') or p.get('Código') or '').strip().upper()
             desc = str(p.get('DESCRICAO') or p.get('Descrição') or '')
             
-            if cod and cod not in codigos_contados_ou_com_saldo:
+            if cod and cod not in codigos_contados:
+                # Procura o saldo associado (se houver na aba do mês ou vazio)
                 saldo_atual = saldos_mes.get(cod, '-')
+                if not saldo_atual:
+                    saldo_atual = '-'
+                    
                 produtos_pendentes.append({
                     "codigo": cod,
                     "descricao": desc,
