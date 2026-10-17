@@ -493,76 +493,88 @@ def produtos_semi_acabados_faltam():
             return jsonify({'sucesso': False, 'mensagem': 'Mês e ano são obrigatórios.'}), 400
             
         nome_aba_mes = f"{int(mes):02d}/{ano}"
+        nome_aba_saldo = f"SALDO_{mes}_{ano}"
         
         gc = conectar_google_sheets()
         if not gc:
             return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'}), 500
             
-        # Corrigido para usar a variável correta do seu projeto: NOME_PLANILHA
         planilha = gc.open(NOME_PLANILHA)
         
-        # 1. Carrega todos os produtos oficiais da aba "dados"
-        try:
-            aba_dados = planilha.worksheet("dados")
-        except Exception:
-            return jsonify({'sucesso': False, 'mensagem': 'Aba "dados" não encontrada na planilha.'}), 400
-            
-        produtos_oficiais = aba_dados.get_all_records()
-        
-        # 2. Mapeia quem já foi contado/tem registo na aba do mês (ex: 10/2026)
+        # 1. Carrega todos os produtos oficiais da aba "dados" usando o cache existente
+        produtos_oficiais = obter_produtos_cached()
+        if not produtos_oficiais:
+            try:
+                aba_dados = planilha.worksheet("dados")
+                dados_brutos = aba_dados.get_all_values()
+                if len(dados_brutos) > 1:
+                    for linha in dados_brutos[1:]:
+                        if len(linha) >= 1 and str(linha[0]).strip():
+                            produtos_oficiais.append({
+                                'codigo': str(linha[0]).strip(),
+                                'descricao': str(linha[1]).strip() if len(linha) > 1 else ''
+                            })
+            except Exception:
+                pass
+
+        if not produtos_oficiais:
+            return jsonify({'sucesso': False, 'mensagem': 'Aba "dados" vazia ou não encontrada.'}), 400
+
+        # 2. Mapeia quais códigos já foram inventariados/contados na aba do mês
         codigos_contados = set()
-        saldos_mes = {}
-        
         try:
             aba_mes = planilha.worksheet(nome_aba_mes)
             linhas_mes = aba_mes.get_all_values()
             if len(linhas_mes) > 1:
                 cabecalhos_mes = [str(c).strip().upper() for c in linhas_mes[0]]
-                
-                # Identifica dinamicamente as colunas de Código e Saldo na aba do mês
                 idx_cod = -1
-                idx_saldo = -1
                 for idx, cab in enumerate(cabecalhos_mes):
                     if cab in ['CÓDIGO', 'CODIGO']:
                         idx_cod = idx
-                    elif cab in ['SALDO', 'SALDO ESTOQUE', 'SALDO_ESTOQUE']:
-                        idx_saldo = idx
-                        
+                        break
                 if idx_cod == -1:
-                    idx_cod = 2 # Posição padrão comum (Coluna C)
-                if idx_saldo == -1:
-                    idx_saldo = 3 # Posição padrão comum (Coluna D)
+                    idx_cod = 2 # Padrão Coluna C
                 
                 for linha in linhas_mes[1:]:
                     if len(linha) > idx_cod:
                         cod = str(linha[idx_cod]).strip().upper()
                         if cod:
                             codigos_contados.add(cod)
-                            if len(linha) > idx_saldo:
-                                saldos_mes[cod] = str(linha[idx_saldo]).strip()
         except Exception:
-            # Se a aba do mês ainda não existir, nenhum produto foi contado ainda
             pass
-            
-        # 3. Filtra apenas os produtos da aba "dados" que NÃO estão na aba do mês
+
+        # 3. Carrega os saldos da aba SALDO_MM_YYYY correspondente
+        saldos_dict = {}
+        try:
+            aba_saldo = planilha.worksheet(nome_aba_saldo)
+            registros_saldo = aba_saldo.get_all_values()
+            for linha in registros_saldo[1:]:
+                if len(linha) >= 2:
+                    cod = str(linha[0]).strip().upper()
+                    saldos_dict[cod] = str(linha[1]).strip()
+        except Exception:
+            pass
+
+        # 4. Filtra rigorosamente apenas os produtos oficiais que NÃO estão na lista de contados
         produtos_pendentes = []
         for p in produtos_oficiais:
-            cod = str(p.get('CODIGO') or p.get('Código') or '').strip().upper()
-            desc = str(p.get('DESCRICAO') or p.get('Descrição') or '')
+            cod = str(p.get('codigo', '')).strip()
+            cod_upper = cod.upper()
+            desc = str(p.get('descricao', ''))
             
-            if cod and cod not in codigos_contados:
-                # Procura o saldo associado (se houver na aba do mês ou vazio)
-                saldo_atual = saldos_mes.get(cod, '-')
-                if not saldo_atual:
-                    saldo_atual = '-'
+            if cod and cod_upper not in codigos_contados:
+                saldo_mes = saldos_dict.get(cod_upper, '-')
+                if not saldo_mes:
+                    saldo_mes = '-'
                     
                 produtos_pendentes.append({
                     "codigo": cod,
                     "descricao": desc,
-                    "saldo": saldo_atual
+                    "saldo": saldo_mes
                 })
                 
         return jsonify({'sucesso': True, 'itens': produtos_pendentes})
         
     except Exception as e:
+        print(f"Erro em produtos_semi_acabados_faltam: {e}")
         return jsonify({'sucesso': False, 'mensagem': str(e)}), 500
