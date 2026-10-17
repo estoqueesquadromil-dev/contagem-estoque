@@ -498,8 +498,8 @@ def produtos_semi_acabados_faltam():
         if not gc:
             return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'}), 500
             
-        # Como a aba "dados" e os meses estão na mesma planilha principal (ex: contagem_semi_acabado)
-        planilha = gc.open(NOME_PLANILHA_MOVIMENTACAO)
+        # Corrigido para usar a variável correta do seu projeto: NOME_PLANILHA
+        planilha = gc.open(NOME_PLANILHA)
         
         # 1. Carrega todos os produtos oficiais da aba "dados"
         try:
