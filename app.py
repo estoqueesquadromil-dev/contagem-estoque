@@ -12,13 +12,13 @@ from flask import request, jsonify
 
 
 
-
 app = Flask(__name__)
 
-# Nome oficial da planilha
-NOME_PLANILHA = 'contagem_semi_acabado'
+# Nome oficial da planilha atualizado
+NOME_PLANILHA = 'todos_produtos_contagem'
 
-# --- CACHE EM MEMÓRIA PARA A BUSCA RÁPIDA ---
+
+
 CACHE_PRODUTOS = []
 ULTIMA_ATUALIZACAO_CACHE = 0
 TEMPO_CACHE_SEGUNDOS = 600  # Atualiza o cache a cada 10 minutos (600s)
@@ -47,7 +47,6 @@ def obter_produtos_cached():
     global CACHE_PRODUTOS, ULTIMA_ATUALIZACAO_CACHE
     agora = time.time()
     
-    # Se o cache estiver válido e com dados, usa a memória instantaneamente
     if CACHE_PRODUTOS and (agora - ULTIMA_ATUALIZACAO_CACHE < TEMPO_CACHE_SEGUNDOS):
         return CACHE_PRODUTOS
 
@@ -55,10 +54,11 @@ def obter_produtos_cached():
         print("[CACHE] Carregando produtos do Google Sheets...")
         gc = conectar_google_sheets()
         if not gc:
-            return CACHE_PRODUTOS  # Se falhar, devolve o cache antigo
+            return CACHE_PRODUTOS  
             
         planilha = gc.open(NOME_PLANILHA)
-        sheet = planilha.worksheet('dados')
+        # ALTERADO AQUI PARA LER DA ABA 'todos_produtos'
+        sheet = planilha.worksheet('todos_produtos')
         dados = sheet.get_all_values()
 
         novos_produtos = []
@@ -82,6 +82,8 @@ def obter_produtos_cached():
         print(f"[ERRO CARREGAR CACHE]: {e}")
 
     return CACHE_PRODUTOS
+
+
 
 # --- ROTA PRINCIPAL DO SITE ---
 @app.route('/')
@@ -501,11 +503,11 @@ def produtos_semi_acabados_faltam():
             
         planilha = gc.open(NOME_PLANILHA)
         
-        # 1. Carrega todos os produtos oficiais da aba "dados" usando o cache existente
+        # 1. Carrega todos os produtos oficiais da aba "todos_produtos" usando o cache existente
         produtos_oficiais = obter_produtos_cached()
         if not produtos_oficiais:
             try:
-                aba_dados = planilha.worksheet("dados")
+                aba_dados = planilha.worksheet("todos_produtos") # <-- Alterado de "dados" para "todos_produtos"
                 dados_brutos = aba_dados.get_all_values()
                 if len(dados_brutos) > 1:
                     for linha in dados_brutos[1:]:
@@ -518,7 +520,7 @@ def produtos_semi_acabados_faltam():
                 pass
 
         if not produtos_oficiais:
-            return jsonify({'sucesso': False, 'mensagem': 'Aba "dados" vazia ou não encontrada.'}), 400
+            return jsonify({'sucesso': False, 'mensagem': 'Aba "todos_produtos" vazia ou não encontrada.'}), 400
 
         # 2. Mapeia quais códigos já foram inventariados/contados na aba do mês
         codigos_contados = set()
