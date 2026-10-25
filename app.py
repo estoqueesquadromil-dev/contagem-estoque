@@ -126,7 +126,7 @@ def atualizar_cache_manual():
 @app.route('/salvar_lote', methods=['POST'])
 def salvar_lote():
     dados = request.json
-    data_lote = dados.get('data')
+    data_lote = dados.get('data')  # Ex: "10/2026"
     itens = dados.get('itens', [])
 
     if not data_lote or not itens:
@@ -136,6 +136,7 @@ def salvar_lote():
         produtos = obter_produtos_cached()
         codigos_validos = {p['codigo'].upper() for p in produtos}
 
+        # 1. Valida se todos os códigos enviados existem na planilha oficial
         for item in itens:
             cod_item = str(item.get('CODIGO', '')).strip().upper()
             if not cod_item:
@@ -143,18 +144,36 @@ def salvar_lote():
             if cod_item not in codigos_validos:
                 return jsonify({
                     'sucesso': False, 
-                    'mensagem': f'O código "{cod_item}" não existe na aba "dados" da planilha!'
+                    'mensagem': f'Bloqueado! O código "{cod_item}" não existe na aba "todos_produtos".'
                 })
 
         gc = conectar_google_sheets()
         planilha = gc.open(NOME_PLANILHA)
         
+        # 2. Verifica se a aba do mês já existe e quais códigos já foram contados nela para evitar duplicados
+        codigos_ja_existentes_no_mes = set()
         try:
             sheet_mov = planilha.worksheet(data_lote)
+            registros_existentes = sheet_mov.get_all_records()
+            for reg in registros_existentes:
+                c_existente = str(reg.get('Código', '')).strip().upper()
+                if c_existente:
+                    codigos_ja_existentes_no_mes.add(c_existente)
         except gspread.exceptions.WorksheetNotFound:
+            # Se a aba ainda não existe, cria agora com o cabeçalho correto
             sheet_mov = planilha.add_worksheet(title=data_lote, rows="1000", cols="8")
-            # Cabeçalho sem a coluna Status, mantendo apenas Inventario Feito
             sheet_mov.append_row(["ID", "Data", "Código", "Saldo Estoque", "Quantidade Contada", "Diferença", "Tipo", "Inventario Feito"])
+
+        # Valida duplicidade dentro do próprio lote ou contra o que já está na planilha do mês
+        for item in itens:
+            cod_item = str(item.get('CODIGO', '')).strip().upper()
+            if cod_item in codigos_ja_existentes_no_mes:
+                return jsonify({
+                    'sucesso': False,
+                    'mensagem': f'O produto "{cod_item}" já foi contado/adicionado neste mês ({data_lote}). Não é permitido duplicar!'
+                })
+            # Adiciona ao set para evitar duplicidade caso o próprio lote traga o mesmo código repetido
+            codigos_ja_existentes_no_mes.add(cod_item)
 
         linhas_adicionar = []
         for item in itens:
@@ -174,7 +193,6 @@ def salvar_lote():
         return jsonify({'sucesso': True, 'mensagem': f'Gravado com sucesso na aba {data_lote}!'})
     except Exception as e:
         return jsonify({'sucesso': False, 'mensagem': f'Erro ao salvar: {str(e)}'})
-
 
 
 @app.route('/consultar_movimentacao', methods=['GET'])
