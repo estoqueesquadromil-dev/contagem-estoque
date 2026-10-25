@@ -86,12 +86,26 @@
         </div>
 
         <div class="row g-2 mb-2">
-          <div class="col-md-6 position-relative">
+          <div class="col-md-4 position-relative">
             <label class="form-label fw-semibold">Código do Produto:</label>
             <input type="text" id="inputProduto" class="form-control" placeholder="Digite o código ou descrição..." autocomplete="off">
             <div id="caixaSugestoes" class="suggestion-box"></div>
           </div>
           <div class="col-md-3">
+            <label class="form-label fw-semibold">Tipo do Produto:</label>
+            <select id="selectTipo" class="form-select">
+              <option value="Produto Acabado">Produto Acabado</option>
+              <option value="Acessório Primário">Acessório Primário</option>
+              <option value="Acessório Almoxarifado">Acessório Almoxarifado</option>
+              <option value="Folha de Porta Madeira">Folha de Porta Madeira</option>
+              <option value="Perfil">Perfil</option>
+              <option value="Vidro Temperado">Vidro Temperado</option>
+              <option value="Vidros">Vidros</option>
+              <option value="Semiacabado" selected>Semiacabado</option>
+              <option value="Subproduto">Subproduto</option>
+            </select>
+          </div>
+          <div class="col-md-2">
             <label class="form-label fw-semibold">Quantidade:</label>
             <input type="number" id="inputQtd" class="form-control" value="1" min="1" oninput="calcularDiferencaSaldo()">
           </div>
@@ -99,7 +113,6 @@
             <button class="btn btn-success w-100 fw-bold" onclick="adicionarItem()"><i class="bi bi-plus-lg"></i> Adicionar</button>
           </div>
         </div>
-
         <!-- PAINEL DE INFORMAÇÕES DO SALDO DE ESTOQUE DA PESQUISA -->
         <div id="painelSaldo" class="alert alert-secondary py-2 px-3 my-3 d-flex justify-content-around align-items-center rounded-3">
           <div>
@@ -117,6 +130,7 @@
             <thead>
               <tr>
                 <th>Código</th>
+                <th>Tipo</th>
                 <th>Saldo Estoque</th>
                 <th>Quantidade Contada</th>
                 <th>Diferença</th>
@@ -124,15 +138,12 @@
               </tr>
             </thead>
             <tbody id="corpoTabela">
-              <tr><td colspan="5" class="text-center text-muted">Nenhum item adicionado.</td></tr>
-            </tbody>
-          </table>
-            <tbody id="corpoTabela">
-              <tr><td colspan="5" class="text-center text-muted">Nenhum item adicionado.</td></tr>
+              <tr><td colspan="6" class="text-center text-muted">Nenhum item adicionado.</td></tr>
             </tbody>
           </table>
         </div>
 
+        
         <div class="d-flex justify-content-end mt-3">
           <button id="btnSalvar" class="btn btn-primary btn-lg fw-bold" onclick="salvarLote()">Salvar Contagem</button>
         </div>
@@ -146,6 +157,7 @@
 
 
         <!-- FILTROS E BOTÕES DE STATUS NA PARTE DE CIMA -->
+<!-- FILTROS E BOTÕES DE STATUS NA PARTE DE CIMA -->
         <div class="row mb-3 align-items-end g-2">
           <div class="col-md-2">
             <label class="form-label fw-semibold">Mês:</label>
@@ -162,7 +174,22 @@
               <option value="2026" selected>2026</option><option value="2027">2027</option><option value="2028">2028</option>
             </select>
           </div>
-          <div class="col-md-3">
+          <div class="col-md-2">
+            <label class="form-label fw-semibold">Filtrar por Tipo:</label>
+            <select id="filtroTipoConsulta" class="form-select form-select-sm" onchange="filtrarTabelaConsulta()">
+              <option value="">Todos os Tipos</option>
+              <option value="Produto Acabado">Produto Acabado</option>
+              <option value="Acessório Primário">Acessório Primário</option>
+              <option value="Acessório Almoxarifado">Acessório Almoxarifado</option>
+              <option value="Folha de Porta Madeira">Folha de Porta Madeira</option>
+              <option value="Perfil">Perfil</option>
+              <option value="Vidro Temperado">Vidro Temperado</option>
+              <option value="Vidros">Vidros</option>
+              <option value="Semiacabado">Semiacabado</option>
+              <option value="Subproduto">Subproduto</option>
+            </select>
+          </div>
+          <div class="col-md-2">
             <label class="form-label fw-semibold">Filtrar por Código:</label>
             <input type="text" id="filtroCodigoConsulta" class="form-control form-control-sm" placeholder="Digite o código..." onkeyup="filtrarTabelaConsulta()">
           </div>
@@ -171,12 +198,11 @@
           </div>
           
           <!-- BOTÕES DE STATUS MENORES E NO TOPO -->
-          <div class="col-md-3 d-flex gap-1 justify-content-end">
+          <div class="col-md-2 d-flex gap-1 justify-content-end">
             <button class="btn btn-warning btn-sm fw-bold text-dark px-2" onclick="atualizarStatusLote('Sim')" title="Marcar como Processado">Processado</button>
             <button class="btn btn-outline-secondary btn-sm fw-bold px-2" onclick="atualizarStatusLote('Não')" title="Marcar como Pendente">Pendente</button>
           </div>
         </div>
-
         <div class="d-flex justify-content-between align-items-center mb-2">
           <span id="infoItensSelecionados" class="text-muted small">0 itens selecionados</span>
         </div>
@@ -367,6 +393,7 @@
 
 function adicionarItem() {
   const codigoTxt = inputProd.value.trim();
+  const tipoSelec = document.getElementById('selectTipo').value;
 
   if (!codigoTxt) {
     alert('Digite ou selecione um código!');
@@ -382,7 +409,7 @@ function adicionarItem() {
     SALDO: saldo,
     QUANTIDADE: qtd,
     DIFERENCA: diferenca,
-    TIPO: 'Contagem'
+    TIPO: tipoSelec
   });
 
   produtoSelecionado = null;
@@ -399,7 +426,7 @@ function renderTabela() {
   corpo.innerHTML = '';
 
   if (listaLote.length === 0) {
-    corpo.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Nenhum item adicionado.</td></tr>';
+    corpo.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nenhum item adicionado.</td></tr>';
     return;
   }
 
@@ -417,6 +444,7 @@ function renderTabela() {
 
     tr.innerHTML = `
       <td><strong>${item.CODIGO}</strong></td>
+      <td><span class="badge bg-info text-dark">${item.TIPO}</span></td>
       <td><span class="badge bg-secondary">${item.SALDO}</span></td>
       <td><strong>${item.QUANTIDADE}</strong></td>
       <td><span class="${corDifClass}">${difTexto}</span></td>
@@ -835,18 +863,23 @@ async function salvarEdicaoConsulta(dataMov, id) {
 
 // Filtra dinamicamente pelo código digitado no campo de pesquisa
 function filtrarTabelaConsulta() {
-  const termo = document.getElementById('filtroCodigoConsulta').value.trim().toUpperCase();
-  if (!termo) {
-    renderizarTabelaConsulta(todosOsDadosConsulta);
-    return;
+  const termoCodigo = document.getElementById('filtroCodigoConsulta').value.trim().toUpperCase();
+  const termoTipo = document.getElementById('filtroTipoConsulta').value;
+
+  let filtrados = todosOsDadosConsulta;
+
+  if (termoTipo) {
+    filtrados = filtrados.filter(item => item.Tipo === termoTipo);
   }
-  
-  const filtrados = todosOsDadosConsulta.filter(item => 
-    String(item.Código).toUpperCase().includes(termo)
-  );
+
+  if (termoCodigo) {
+    filtrados = filtrados.filter(item => String(item.Código).toUpperCase().includes(termoCodigo));
+  }
+
   renderizarTabelaConsulta(filtrados);
 }
 
+    
 async function carregarSemiAcabadosFaltaContar() {
     let mes = document.getElementById('mes-semi').value;
     let ano = document.getElementById('ano-semi').value;
