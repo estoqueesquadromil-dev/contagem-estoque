@@ -164,7 +164,7 @@ def salvar_lote():
             sheet_mov = planilha.add_worksheet(title=data_lote, rows="1000", cols="8")
             sheet_mov.append_row(["ID", "Data", "Código", "Saldo Estoque", "Quantidade Contada", "Diferença", "Tipo", "Inventario Feito"])
 
-        # Valida duplicidade dentro do próprio lote ou contra o que já está na planilha do mês
+        # Valida duplicidade contra o que já está na planilha do mês
         for item in itens:
             cod_item = str(item.get('CODIGO', '')).strip().upper()
             if cod_item in codigos_ja_existentes_no_mes:
@@ -172,12 +172,13 @@ def salvar_lote():
                     'sucesso': False,
                     'mensagem': f'O produto "{cod_item}" já foi contado/adicionado neste mês ({data_lote}). Não é permitido duplicar!'
                 })
-            # Adiciona ao set para evitar duplicidade caso o próprio lote traga o mesmo código repetido
             codigos_ja_existentes_no_mes.add(cod_item)
 
         linhas_adicionar = []
         for item in itens:
             row_id = str(uuid.uuid4())[:8]
+            tipo_produto = str(item.get('TIPO', 'Semiacabado')).strip() # Pega o tipo exato escolhido no select
+            
             linhas_adicionar.append([
                 row_id,
                 data_lote,
@@ -185,7 +186,7 @@ def salvar_lote():
                 int(item.get('SALDO', 0)),
                 int(item.get('QUANTIDADE', 1)),
                 int(item.get('DIFERENCA', 0)),
-                'Contagem',
+                tipo_produto, # Grava o tipo correto (ex: Semiacabado) na coluna G
                 'Não' # Inventario Feito
             ])
 
@@ -193,7 +194,6 @@ def salvar_lote():
         return jsonify({'sucesso': True, 'mensagem': f'Gravado com sucesso na aba {data_lote}!'})
     except Exception as e:
         return jsonify({'sucesso': False, 'mensagem': f'Erro ao salvar: {str(e)}'})
-
 
 @app.route('/consultar_movimentacao', methods=['GET'])
 def consultar_movimentacao():
