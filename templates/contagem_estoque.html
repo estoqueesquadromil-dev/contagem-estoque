@@ -144,25 +144,6 @@
       <div class="card p-4 mb-4">
         <h4 class="text-primary mb-3">Consultar Movimentação & Lotes</h4>
 
-        <!-- BLOCÃO PARA COLAR SALDO DE ESTOQUE DA TABELA -->
-        <div class="card bg-light p-3 mb-4 border">
-          <div class="row g-3">
-            <div class="col-md-8">
-              <label class="form-label fw-bold text-dark m-0">Colar Saldo de Estoque (Código e Quantidade):</label>
-              <small class="text-muted d-block mb-2">Cole as colunas do Excel/Sheets diretamente aqui (ex: UP075-1586 4)</small>
-              <textarea id="txtSaldoEstoque" class="form-control" rows="3" placeholder="UP075-1586	4&#10;UP075-1786	1"></textarea>
-            </div>
-            <div class="col-md-4 d-flex flex-column justify-content-between">
-              <div>
-                <small class="text-muted d-block fw-semibold">Última Atualização nesta Aba:</small>
-                <span id="txtUltimaAtualizacaoSaldo" class="fw-bold text-primary d-block mb-2">Nenhuma atualização salva</span>
-              </div>
-              <button id="btnSalvarSaldo" class="btn btn-success fw-bold w-100" onclick="salvarSaldoEstoque()">
-                <i class="bi bi-save"></i> Salvar Saldo de Estoque
-              </button>
-            </div>
-          </div>
-        </div>
 
         <!-- FILTROS E BOTÕES DE STATUS NA PARTE DE CIMA -->
         <div class="row mb-3 align-items-end g-2">
@@ -227,15 +208,36 @@
 
 
 
-        <!-- PAINEL SEMI_ACABADO: PRODUTOS POR CONTAR -->
-    <div id="painel-semi-acabado" class="painel">
-        <h2>Produtos Semi-Acabados por Contar</h2>
-        <p style="color: #666; font-size: 14px;">Lista de produtos oficiais que ainda não possuem registo de contagem no mês selecionado.</p>
+<!-- PAINEL SEMI_ACABADO: PRODUTOS POR CONTAR -->
+    <section id="sec-semi-acabado" class="page-section">
+      <div class="card p-4 mb-4">
+        <h4 class="text-primary mb-3">Produtos Semi-Acabados por Contar</h4>
+        <p class="text-muted" style="font-size: 14px;">Lista de produtos oficiais que ainda não possuem registo de contagem no mês selecionado.</p>
     
-        <div class="form-row" style="margin-top: 15px; align-items: flex-end;">
-            <div class="form-group" style="max-width: 180px;">
-                <label for="mes-semi">Mês:</label>
-                <select id="mes-semi" class="form-control">
+        <!-- BLOCÃO PARA COLAR SALDO DE ESTOQUE AGORA NESTA ABA -->
+        <div class="card bg-light p-3 mb-4 border">
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label class="form-label fw-bold text-dark m-0">Colar Saldo de Estoque (Código e Quantidade):</label>
+              <small class="text-muted d-block mb-2">Cole as colunas do Excel/Sheets diretamente aqui (ex: UP075-1586 4)</small>
+              <textarea id="txtSaldoEstoque" class="form-control" rows="3" placeholder="UP075-1586	4&#10;UP075-1786	1"></textarea>
+            </div>
+            <div class="col-md-4 d-flex flex-column justify-content-between">
+              <div>
+                <small class="text-muted d-block fw-semibold">Última Atualização:</small>
+                <span id="txtUltimaAtualizacaoSaldo" class="fw-bold text-primary d-block mb-2">Nenhuma atualização salva</span>
+              </div>
+              <button id="btnSalvarSaldo" class="btn btn-success fw-bold w-100" onclick="salvarSaldoEstoque()">
+                <i class="bi bi-save"></i> Salvar Saldo de Estoque
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-2 align-items-end mb-3">
+            <div class="col-md-3">
+                <label for="mes-semi" class="form-label fw-semibold">Mês:</label>
+                <select id="mes-semi" class="form-select">
                     <option value="1">01 - Janeiro</option>
                     <option value="2">02 - Fevereiro</option>
                     <option value="3">03 - Março</option>
@@ -250,35 +252,41 @@
                     <option value="12">12 - Dezembro</option>
                 </select>
             </div>
-            <div class="form-group" style="max-width: 140px;">
-                <label for="ano-semi">Ano:</label>
+            <div class="col-md-2">
+                <label for="ano-semi" class="form-label fw-semibold">Ano:</label>
                 <input type="number" id="ano-semi" class="form-control" value="2026">
             </div>
-            <button class="btn-pesquisar" onclick="carregarSemiAcabadosFaltaContar()" style="height: 42px;">Filtrar Pendentes</button>
+            <div class="col-md-3">
+                <button class="btn btn-secondary fw-bold w-100" onclick="carregarSemiAcabadosFaltaContar()">Filtrar Pendentes</button>
+            </div>
         </div>
     
-        <div id="contador-pendentes-semi" class="contador-badge" style="margin-top: 15px; display: inline-block; background: #fff3cd; color: #856404; padding: 8px 12px; border-radius: 4px; font-weight: bold;">
+        <div id="contador-pendentes-semi" class="contador-badge mb-3" style="display: inline-block; background: #fff3cd; color: #856404; padding: 8px 12px; border-radius: 4px; font-weight: bold;">
             Total por contar: 0
         </div>
     
-        <div class="table-responsive" style="margin-top: 15px;">
-            <table id="tabela-semi-acabado" style="width: 100%; border-collapse: collapse; background: white;">
-                <thead>
-                    <tr style="background-color: #0056b3; color: white; text-align: left;">
-                        <th style="padding: 10px; border: 1px solid #ddd;">Código</th>
-                        <th style="padding: 10px; border: 1px solid #ddd;">Descrição</th>
-                        <th style="padding: 10px; border: 1px solid #ddd;">Saldo do Mês</th>
+        <div class="table-responsive">
+            <table id="tabela-semi-acabado" class="table table-bordered table-striped align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Código</th>
+                        <th>Descrição</th>
+                        <th>Saldo do Mês</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td colspan="3" style="text-align: center; color: #777; padding: 20px;">Selecione o mês e ano e clique em Filtrar Pendentes.</td>
+                        <td colspan="3" class="text-center text-muted py-3">Selecione o mês e ano e clique em Filtrar Pendentes.</td>
                     </tr>
                 </tbody>
             </table>
         </div>
-    </div>
+      </div>
+    </section>
 
+
+
+    
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
 
