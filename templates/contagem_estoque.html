@@ -238,9 +238,9 @@
     <section id="sec-semi-acabado" class="page-section">
       <div class="card p-4 mb-4">
         <h4 class="text-primary mb-3">Produtos Semi-Acabados por Contar</h4>
-        <p class="text-muted" style="font-size: 14px;">Lista de produtos oficiais que ainda não possuem registo de contagem no mês selecionado.</p>
+        <p class="text-muted" style="font-size: 14px;">Gerenciamento de saldos, colagem de códigos e controle de pendências mensais.</p>
     
-        <!-- BLOCÃO PARA COLAR SALDO DE ESTOQUE AGORA NESTA ABA -->
+        <!-- BLOCÃO PARA COLAR SALDO DE ESTOQUE -->
         <div class="card bg-light p-3 mb-4 border">
           <div class="row g-3">
             <div class="col-md-8">
@@ -260,22 +260,30 @@
           </div>
         </div>
 
+        <!-- NOVO CAMPO PARA COLAR CÓDIGOS A SEREM CONTADOS -->
+        <div class="card bg-white p-3 mb-4 border shadow-sm">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-9">
+              <label class="form-label fw-bold text-dark">Colar Códigos para Contagem:</label>
+              <textarea id="txtCodigosContar" class="form-control" rows="2" placeholder="Cole os códigos aqui..."></textarea>
+            </div>
+            <div class="col-md-3">
+              <button class="btn btn-primary fw-bold w-100" onclick="salvarCodigosParaContar()">
+                <i class="bi bi-plus-circle"></i> Salvar na Aba do Mês
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- FILTROS DE MÊS E ANO -->
         <div class="row g-2 align-items-end mb-3">
             <div class="col-md-3">
                 <label for="mes-semi" class="form-label fw-semibold">Mês:</label>
                 <select id="mes-semi" class="form-select">
-                    <option value="1">01 - Janeiro</option>
-                    <option value="2">02 - Fevereiro</option>
-                    <option value="3">03 - Março</option>
-                    <option value="4">04 - Abril</option>
-                    <option value="5">05 - Maio</option>
-                    <option value="6">06 - Junho</option>
-                    <option value="7">07 - Julho</option>
-                    <option value="8">08 - Agosto</option>
-                    <option value="9">09 - Setembro</option>
-                    <option value="10" selected>10 - Outubro</option>
-                    <option value="11">11 - Novembro</option>
-                    <option value="12">12 - Dezembro</option>
+                    <option value="1">01 - Janeiro</option><option value="2">02 - Fevereiro</option><option value="3">03 - Março</option>
+                    <option value="4">04 - Abril</option><option value="5">05 - Maio</option><option value="6">06 - Junho</option>
+                    <option value="7">07 - Julho</option><option value="8">08 - Agosto</option><option value="9">09 - Setembro</option>
+                    <option value="10" selected>10 - Outubro</option><option value="11">11 - Novembro</option><option value="12">12 - Dezembro</option>
                 </select>
             </div>
             <div class="col-md-2">
@@ -286,8 +294,28 @@
                 <button class="btn btn-secondary fw-bold w-100" onclick="carregarSemiAcabadosFaltaContar()">Filtrar Pendentes</button>
             </div>
         </div>
-    
-        <div id="contador-pendentes-semi" class="contador-badge mb-3" style="display: inline-block; background: #fff3cd; color: #856404; padding: 8px 12px; border-radius: 4px; font-weight: bold;">
+
+        <!-- TABELA 1: ITENS SALVOS DO SALDO DE ESTOQUE -->
+        <h5 class="text-dark mt-4 mb-2">Lista de Saldos Salvos</h5>
+        <div class="table-responsive mb-4">
+            <table id="tabela-saldos-salvos" class="table table-bordered table-striped align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Mês/Ano</th>
+                        <th>Código</th>
+                        <th>Quantidade</th>
+                        <th style="width: 140px;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="4" class="text-center text-muted py-2">Nenhum saldo carregado.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- TABELA 2: PRODUTOS QUE FALTAM CONTAR -->
+        <h5 class="text-dark mt-3 mb-2">Produtos que Faltam Contar</h5>
+        <div id="contador-pendentes-semi" class="contador-badge mb-2" style="display: inline-block; background: #fff3cd; color: #856404; padding: 6px 12px; border-radius: 4px; font-weight: bold; font-size: 13px;">
             Total por contar: 0
         </div>
     
@@ -295,21 +323,18 @@
             <table id="tabela-semi-acabado" class="table table-bordered table-striped align-middle">
                 <thead class="table-dark">
                     <tr>
+                        <th>Data</th>
                         <th>Código</th>
-                        <th>Descrição</th>
-                        <th>Saldo do Mês</th>
+                        <th style="width: 140px;">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr>
-                        <td colspan="3" class="text-center text-muted py-3">Selecione o mês e ano e clique em Filtrar Pendentes.</td>
-                    </tr>
+                    <tr><td colspan="3" class="text-center text-muted py-3">Selecione o mês e ano e clique em Filtrar Pendentes.</td></tr>
                 </tbody>
             </table>
         </div>
       </div>
     </section>
-
 
 
     
@@ -641,9 +666,10 @@ async function consultarMovimentacao() {
 // Função para ler o texto colado e enviar para o backend
 async function salvarSaldoEstoque() {
     const btn = document.getElementById('btnSalvarSaldo');
-    const textoColado = document.getElementById('txtSaldoEstoque').value.trim();
-    const mes = document.getElementById('selectMesConsulta').value;
-    const ano = document.getElementById('selectAnoConsulta').value;
+    const txtArea = document.getElementById('txtSaldoEstoque');
+    const textoColado = txtArea.value.trim();
+    const mes = document.getElementById('mes-semi').value;
+    const ano = document.getElementById('ano-semi').value;
     const dataConsulta = `${mes}/${ano}`;
 
     if (!textoColado) {
@@ -667,6 +693,8 @@ async function salvarSaldoEstoque() {
         alert(dados.mensagem);
 
         if (dados.sucesso) {
+            // LIMPA O CAMPO APÓS SALVAR COM SUCESSO CONFORME SOLICITADO
+            txtArea.value = '';
             buscarSaldoAtual(dataConsulta);
         }
     } catch (e) {
@@ -676,6 +704,10 @@ async function salvarSaldoEstoque() {
         if (btn) btn.disabled = false;
     }
 }
+
+
+
+    
 
 // Carrega o saldo atual da aba correspondente ao filtro de Mês e Ano
 async function buscarSaldoAtual(dataConsulta) {
@@ -883,45 +915,82 @@ function filtrarTabelaConsulta() {
 async function carregarSemiAcabadosFaltaContar() {
     let mes = document.getElementById('mes-semi').value;
     let ano = document.getElementById('ano-semi').value;
-    let tbody = document.querySelector('#tabela-semi-acabado tbody');
+    let dataFormatada = `${mes.padStart(2, '0')}/${ano}`;
+    let tbodyFalta = document.querySelector('#tabela-semi-acabado tbody');
+    let tbodySaldos = document.querySelector('#tabela-saldos-salvos tbody');
     let contadorBadge = document.getElementById('contador-pendentes-semi');
 
-    tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px;">A verificar produtos pendentes...</td></tr>';
+    tbodyFalta.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 15px;">A verificar produtos...</td></tr>';
 
     try {
+        // Carrega dados de pendentes
         let resposta = await fetch(`/produtos_semi_acabados_faltam?mes=${mes}&ano=${ano}`);
         let resultado = await resposta.json();
 
-        if (!resultado.sucesso) {
-            alert('Erro: ' + resultado.mensagem);
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: red; padding: 20px;">Erro ao carregar dados.</td></tr>';
-            return;
+        if (resultado.sucesso) {
+            let itens = resultado.itens || [];
+            contadorBadge.textContent = `Total por contar: ${itens.length} produtos`;
+            tbodyFalta.innerHTML = '';
+
+            if (itens.length === 0) {
+                tbodyFalta.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #28a745; font-weight: bold; padding: 15px;">Parabéns! Todos os produtos já foram contados neste mês.</td></tr>';
+            } else {
+                itens.forEach((item, idx) => {
+                    let tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="padding: 8px; border: 1px solid #ddd;">${dataFormatada}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${item.codigo}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-warning btn-sm fw-bold text-dark" onclick="editarItemPendente(${idx}, '${item.codigo}')">Editar</button>
+                                <button class="btn btn-danger btn-sm" onclick="excluirItemPendente('${item.codigo}')">Excluir</button>
+                            </div>
+                        </td>
+                    `;
+                    tbodyFalta.appendChild(tr);
+                });
+            }
         }
 
-        let itens = resultado.itens;
-        contadorBadge.textContent = `Total por contar: ${itens.length} produtos`;
-        tbody.innerHTML = '';
+        // Carrega também os saldos salvos para preencher a primeira tabela
+        let resSaldos = await fetch(`/obter_saldo?data=${dataFormatada}`);
+        let dadosSaldos = await resSaldos.json();
+        tbodySaldos.innerHTML = '';
 
-        if (itens.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #28a745; font-weight: bold; padding: 20px;">Parabéns! Todos os produtos já foram contados neste mês.</td></tr>';
-            return;
+        if (dadosSaldos.sucesso && dadosSaldos.texto) {
+            let linhas = dadosSaldos.texto.split('\n');
+            linhas.forEach((linha, idx) => {
+                let partes = linha.split('\t');
+                if (partes.length >= 2) {
+                    let tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="padding: 8px; border: 1px solid #ddd;">${dataFormatada}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${partes[0]}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${partes[1]}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-warning btn-sm fw-bold text-dark" onclick="editarSaldoSalvo(${idx})">Editar</button>
+                                <button class="btn btn-danger btn-sm" onclick="excluirSaldoSalvo(${idx})">Excluir</button>
+                            </div>
+                        </td>
+                    `;
+                    tbodySaldos.appendChild(tr);
+                }
+            });
         }
 
-        itens.forEach(item => {
-            let tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold;">${item.codigo}</td>
-                <td style="padding: 10px; border: 1px solid #ddd;">${item.descricao}</td>
-                <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold; color: #0056b3;">${item.saldo}</td>
-            `;
-            tbody.appendChild(tr);
-        });
+        if (tbodySaldos.innerHTML === '') {
+            tbodySaldos.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-2">Nenhum saldo guardado para este mês.</td></tr>';
+        }
 
     } catch (err) {
         console.error(err);
-        tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: red; padding: 20px;">Erro de comunicação com o servidor.</td></tr>';
+        tbodyFalta.innerHTML = '<tr><td colspan="3" style="text-align: center; color: red; padding: 15px;">Erro de comunicação com o servidor.</td></tr>';
     }
 }
+
+
+    
 
 // Função isolada para abrir a aba Semi-Acabado sem mexer na lógica anterior
 function mostrarSecaoSemiAcabado(elem) {
