@@ -204,7 +204,7 @@ def consultar_movimentacao():
         gc = conectar_google_sheets()
         planilha = gc.open(NOME_PLANILHA)
 
-        # 1. Carregar o dicionário de saldos da aba SALDO_MM_YYYY para consulta rápida
+        # 1. Carregar o dicionário de saldos da aba SALDO_MM_YYYY
         saldos_dict = {}
         try:
             aba_saldo = planilha.worksheet(nome_aba_saldo)
@@ -212,10 +212,15 @@ def consultar_movimentacao():
             for linha in registros_saldo[1:]:  # Pula o cabeçalho
                 if len(linha) >= 2:
                     cod = str(linha[0]).strip().upper()
-                    sld = int(linha[1]) if str(linha[1]).isdigit() or (str(linha[1]).startswith('-') and str(linha[1][1:]).isdigit()) else 0
+                    # Tenta converter o saldo para inteiro ou float com segurança
+                    sld_str = str(linha[1]).strip().replace(',', '.')
+                    try:
+                        sld = int(float(sld_str))
+                    except ValueError:
+                        sld = 0
                     saldos_dict[cod] = sld
-        except Exception:
-            pass # Se a aba de saldo ainda não existir, o saldo será 0
+        except Exception as e:
+            print(f"[AVISO] Não foi possível ler a aba de saldo {nome_aba_saldo}: {e}")
 
         # 2. Carregar os itens da movimentação da aba do mês
         try:
@@ -223,17 +228,18 @@ def consultar_movimentacao():
             registros = sheet_mov.get_all_records()
             
             itens_formatados = []
-            updates_necessarios = []
-
-            for idx, r in enumerate(registros, start=2): # start=2 porque a linha 1 é o cabeçalho
+            for r in registros:
                 codigo = str(r.get("Código", "")).strip()
                 codigo_upper = codigo.upper()
                 
-                # Pega o saldo real diretamente da aba de saldo correspondente
+                # Pega o saldo real diretamente do dicionário carregado da aba de saldo
                 saldo_estoque = saldos_dict.get(codigo_upper, 0)
                 
                 qtd = r.get("Quantidade Contada", r.get("Quantidade", 0))
-                qtd_int = int(qtd) if str(qtd).isdigit() or (str(qtd).startswith('-') and str(qtd)[1:].isdigit()) else 0
+                try:
+                    qtd_int = int(float(str(qtd).strip().replace(',', '.')))
+                except ValueError:
+                    qtd_int = 0
                 
                 # Recalcula a diferença correta (Quantidade Contada - Saldo de Estoque)
                 diferenca = qtd_int - saldo_estoque
@@ -245,7 +251,7 @@ def consultar_movimentacao():
                     "SaldoEstoque": saldo_estoque,
                     "Quantidade": qtd_int,
                     "Diferenca": diferenca,
-                    "Tipo": str(r.get("Tipo", "Contagem")),
+                    "Tipo": str(r.get("Tipo", "Semiacabado")),
                     "Inventario Feito": str(r.get("Inventario Feito", "Não"))
                 })
 
@@ -256,7 +262,6 @@ def consultar_movimentacao():
     except Exception as e:
         print(f"Erro ao consultar movimentação: {e}")
         return jsonify({"sucesso": False, "mensagem": str(e)})
-
 
 
 
