@@ -14,9 +14,10 @@ from flask import request, jsonify
 
 app = Flask(__name__)
 
-# Nome oficial da planilha atualizado
+# Nome oficial da planilha principal de contagem
 NOME_PLANILHA = 'todos_produtos_contagem'
-
+# Nome da planilha onde ficam as abas de saldo (ex: SALDO_10_2026)
+NOME_PLANILHA_SALDOS = 'contagem_semi_acabado'
 
 
 CACHE_PRODUTOS = []
@@ -202,12 +203,12 @@ def consultar_movimentacao():
         nome_aba_saldo = f"SALDO_{data_consulta.replace('/', '_')}"
         
         gc = conectar_google_sheets()
-        planilha = gc.open(NOME_PLANILHA)
 
-        # 1. Carregar o dicionário de saldos da aba SALDO_MM_YYYY
+        # 1. Carregar o dicionário de saldos da aba SALDO_MM_YYYY da planilha de saldos correta
         saldos_dict = {}
         try:
-            aba_saldo = planilha.worksheet(nome_aba_saldo)
+            planilha_saldos = gc.open(NOME_PLANILHA_SALDOS)
+            aba_saldo = planilha_saldos.worksheet(nome_aba_saldo)
             registros_saldo = aba_saldo.get_all_values()
             for linha in registros_saldo[1:]:  # Pula o cabeçalho
                 if len(linha) >= 2:
@@ -220,11 +221,12 @@ def consultar_movimentacao():
                         sld = 0
                     saldos_dict[cod] = sld
         except Exception as e:
-            print(f"[AVISO] Não foi possível ler a aba de saldo {nome_aba_saldo}: {e}")
+            print(f"[AVISO] Não foi possível ler a aba de saldo {nome_aba_saldo} na planilha {NOME_PLANILHA_SALDOS}: {e}")
 
-        # 2. Carregar os itens da movimentação da aba do mês
+        # 2. Carregar os itens da movimentação da aba do mês na planilha principal
         try:
-            sheet_mov = planilha.worksheet(data_consulta)
+            planilha_principal = gc.open(NOME_PLANILHA)
+            sheet_mov = planilha_principal.worksheet(data_consulta)
             registros = sheet_mov.get_all_records()
             
             itens_formatados = []
@@ -262,6 +264,8 @@ def consultar_movimentacao():
     except Exception as e:
         print(f"Erro ao consultar movimentação: {e}")
         return jsonify({"sucesso": False, "mensagem": str(e)})
+
+
 
 
 
@@ -333,6 +337,7 @@ if __name__ == '__main__':
 
 
 # --- ROTA PARA SALVAR O SALDO DE ESTOQUE ---
+# --- ROTA PARA SALVAR O SALDO DE ESTOQUE ---
 @app.route('/salvar_saldo', methods=['POST'])
 def salvar_saldo():
     try:
@@ -343,11 +348,9 @@ def salvar_saldo():
         if not data_mes_ano or not texto_colado:
             return jsonify({'sucesso': False, 'mensagem': 'Dados incompletos!'})
 
-        # Nome da aba formatado conforme solicitado (ex: SALDO_10_2026)
         nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
         agora = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
 
-        # Processar as linhas coladas (separando código e saldo por TAB ou espaço)
         linhas_processadas = []
         for linha in texto_colado.strip().split('\n'):
             linha_limpa = linha.strip()
@@ -365,24 +368,22 @@ def salvar_saldo():
         if not linhas_processadas:
             return jsonify({"sucesso": False, "mensagem": "Nenhum dado válido encontrado no texto colado!"})
 
-        # Conexão correta usando a função padrão do seu projeto
         gc = conectar_google_sheets()
-        planilha = gc.open(NOME_PLANILHA)
+        # Salva na planilha correta de saldos
+        planilha = gc.open(NOME_PLANILHA_SALDOS)
 
-        # O sistema verifica se a aba existe; se não existir, cria automaticamente
         try:
             aba = planilha.worksheet(nome_aba)
-            aba.clear()  # Limpa os dados antigos para atualizar com o novo saldo colado
+            aba.clear()
         except gspread.exceptions.WorksheetNotFound:
             aba = planilha.add_worksheet(title=nome_aba, rows="1000", cols="3")
 
-        # Escreve o cabeçalho e todas as linhas processadas de uma vez
         matriz_final = [["CODIGO", "SALDO", "ULTIMA ATUALIZACAO"]] + linhas_processadas
         aba.update('A1', matriz_final)
 
         return jsonify({
             "sucesso": True, 
-            "mensagem": f"Saldo de {len(linhas_processadas)} item(ns) gravado na aba {nome_aba} com sucesso!"
+            "mensagem": f"Saldo de {len(linhas_processadas)} item(ns) gravado na planilha {NOME_PLANILHA_SALDOS} (aba {nome_aba}) com sucesso!"
         })
 
     except Exception as e:
@@ -398,7 +399,8 @@ def obter_saldo():
         nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
 
         gc = conectar_google_sheets()
-        planilha = gc.open(NOME_PLANILHA)
+        # Lê da planilha correta de saldos
+        planilha = gc.open(NOME_PLANILHA_SALDOS)
 
         try:
             aba = planilha.worksheet(nome_aba)
@@ -408,7 +410,7 @@ def obter_saldo():
                 linhas_texto = []
                 ultima_atualizacao = registros[1][2] if len(registros[1]) >= 3 else ''
                 
-                for r in registros[1:]:  # Ignora o cabeçalho
+                for r in registros[1:]:
                     if len(r) >= 2:
                         linhas_texto.append(f"{r[0]}\t{r[1]}")
                 
@@ -435,21 +437,21 @@ def obter_saldo():
 def obter_saldo_item():
     try:
         codigo_busca = str(request.args.get('codigo', '')).strip().upper()
-        data_mes_ano = request.args.get('data', '') # Ex: "10/2026"
+        data_mes_ano = request.args.get('data', '')
         nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
 
         if not codigo_busca or not data_mes_ano:
             return jsonify({'sucesso': False, 'saldo': 0})
 
         gc = conectar_google_sheets()
-        planilha = gc.open(NOME_PLANILHA)
+        # Lê da planilha correta de saldos
+        planilha = gc.open(NOME_PLANILHA_SALDOS)
 
         try:
             aba = planilha.worksheet(nome_aba)
             registros = aba.get_all_values()
             
-            # Procura pelo código na coluna CODIGO (primeira coluna)
-            for linha in registros[1:]:  # Pula cabeçalho
+            for linha in registros[1:]:
                 if len(linha) >= 2:
                     cod_na_planilha = str(linha[0]).strip().upper()
                     if cod_na_planilha == codigo_busca:
@@ -465,6 +467,9 @@ def obter_saldo_item():
     except Exception as e:
         print(f"Erro ao obter saldo do item: {e}")
         return jsonify({'sucesso': False, 'saldo': 0})
+
+
+
 
 
 
