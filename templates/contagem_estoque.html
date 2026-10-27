@@ -1038,6 +1038,7 @@ async function salvarCodigosParaContar() {
     const txt = document.getElementById('txtCodigosContar').value.trim();
     const mes = document.getElementById('mes-semi').value;
     const ano = document.getElementById('ano-semi').value;
+    const dataFormatada = `${mes.padStart(2, '0')}/${ano}`;
     
     if (!txt) {
         alert('Cole os códigos na caixa de texto!');
@@ -1045,22 +1046,17 @@ async function salvarCodigosParaContar() {
     }
 
     // Separa as linhas do texto colado
-    const linhas = txt.split('\n').map(l => l.trim()).filter(l => l);
-    const itensParaSalvar = linhas.map(codigo => ({
-        CODIGO: codigo,
-        SALDO: 0,
-        QUANTIDADE: 1,
-        DIFERENCA: -1,
-        TIPO: 'Semiacabado'
-    }));
+    const listaCodigos = txt.split('\n')
+                            .map(l => l.trim())
+                            .filter(l => l.length > 0);
 
     try {
-        const res = await fetch('/salvar_lote', {
+        const res = await fetch('/salvar_codigos_contar_semi', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                data: `${mes.padStart(2, '0')}/${ano}`,
-                itens: itensParaSalvar
+                data: dataFormatada,
+                codigos: listaCodigos
             })
         });
         const resultado = await res.json();
@@ -1071,10 +1067,14 @@ async function salvarCodigosParaContar() {
         }
     } catch (e) {
         console.error(e);
-        alert('Erro ao salvar códigos na aba do mês.');
+        alert('Erro ao salvar códigos na planilha contagem_semi_acabado.');
     }
 }
 
+
+
+
+    
 // Editar item pendente (joga o código direto para a aba de Nova Contagem)
 // --- EDIÇÃO DIRETA NA TABELA DE PRODUTOS QUE FALTAM CONTAR ---
 function editarItemPendente(idx, codigo) {
