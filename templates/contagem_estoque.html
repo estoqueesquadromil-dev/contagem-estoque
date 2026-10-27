@@ -936,7 +936,7 @@ async function carregarSemiAcabadosFaltaContar() {
     tbodyFalta.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 15px;">A verificar produtos...</td></tr>';
 
     try {
-        // Carrega dados de pendentes
+        // 1. Carrega produtos que faltam contar
         let resposta = await fetch(`/produtos_semi_acabados_faltam?mes=${mes}&ano=${ano}`);
         let resultado = await resposta.json();
 
@@ -948,16 +948,13 @@ async function carregarSemiAcabadosFaltaContar() {
             if (itens.length === 0) {
                 tbodyFalta.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #28a745; font-weight: bold; padding: 15px;">Parabéns! Todos os produtos já foram contados neste mês.</td></tr>';
             } else {
-                itens.forEach((item, idx) => {
+                itens.forEach((item) => {
                     let tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td style="padding: 8px; border: 1px solid #ddd;">${dataFormatada}</td>
                         <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${item.codigo}</td>
                         <td style="padding: 8px; border: 1px solid #ddd;">
-                            <div class="d-flex gap-1">
-                                <button class="btn btn-warning btn-sm fw-bold text-dark" onclick="editarItemPendente(${idx}, '${item.codigo}')">Editar</button>
-                                <button class="btn btn-danger btn-sm" onclick="excluirItemPendente('${item.codigo}')">Excluir</button>
-                            </div>
+                            <button class="btn btn-danger btn-sm" onclick="excluirItemPendente('${item.codigo}')">Excluir</button>
                         </td>
                     `;
                     tbodyFalta.appendChild(tr);
@@ -965,25 +962,29 @@ async function carregarSemiAcabadosFaltaContar() {
             }
         }
 
-        // Carrega também os saldos salvos para preencher a primeira tabela
+        // 2. Carrega os saldos salvos (agora contendo ID na primeira coluna separada por tabulação)
         let resSaldos = await fetch(`/obter_saldo?data=${dataFormatada}`);
         let dadosSaldos = await resSaldos.json();
         tbodySaldos.innerHTML = '';
 
         if (dadosSaldos.sucesso && dadosSaldos.texto) {
             let linhas = dadosSaldos.texto.split('\n');
-            linhas.forEach((linha, idx) => {
+            linhas.forEach((linha) => {
                 let partes = linha.split('\t');
-                if (partes.length >= 2) {
+                if (partes.length >= 3) {
+                    let idRegistro = partes[0];
+                    let codigo = partes[1];
+                    let qtd = partes[2];
+
                     let tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td style="padding: 8px; border: 1px solid #ddd;">${dataFormatada}</td>
-                        <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${partes[0]}</td>
-                        <td style="padding: 8px; border: 1px solid #ddd;">${partes[1]}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${codigo}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${qtd}</td>
                         <td style="padding: 8px; border: 1px solid #ddd;">
                             <div class="d-flex gap-1">
-                                <button class="btn btn-warning btn-sm fw-bold text-dark" onclick="editarSaldoSalvo(${idx})">Editar</button>
-                                <button class="btn btn-danger btn-sm" onclick="excluirSaldoSalvo(${idx})">Excluir</button>
+                                <button class="btn btn-warning btn-sm fw-bold text-dark" onclick="editarSaldoSalvoPorId('${idRegistro}', '${codigo}', '${qtd}')">Editar</button>
+                                <button class="btn btn-danger btn-sm" onclick="excluirSaldoSalvoPorId('${idRegistro}')">Excluir</button>
                             </div>
                         </td>
                     `;
@@ -1002,9 +1003,46 @@ async function carregarSemiAcabadosFaltaContar() {
     }
 }
 
-
     
+// --- EXCLUIR SALDO SALVO USANDO O ID EXATO ---
+async function excluirSaldoSalvoPorId(rowId) {
+    if (!confirm('Deseja realmente remover este saldo salvo com segurança (via ID)?')) return;
+    
+    const mes = document.getElementById('mes-semi').value;
+    const ano = document.getElementById('ano-semi').value;
+    const dataFormatada = `${mes.padStart(2, '0')}/${ano}`;
 
+    try {
+        const res = await fetch('/excluir_saldo_salvo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                data: dataFormatada,
+                id: rowId
+            })
+        });
+        const dados = await res.json();
+        if (dados.sucesso) {
+            carregarSemiAcabadosFaltaContar();
+        } else {
+            alert('Erro ao excluir saldo: ' + dados.mensagem);
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Erro de comunicação com o servidor.');
+    }
+}
+
+
+// --- EDITAR SALDO SALVO (JOGA PARA O TEXTAREA PARA AJUSTE RÁPIDO) ---
+function editarSaldoSalvoPorId(rowId, codigo, qtd) {
+    const txtArea = document.getElementById('txtSaldoEstoque');
+    txtArea.value = `${codigo}\t${qtd}\n` + txtArea.value;
+    txtArea.focus();
+    alert(`O item ${codigo} foi movido para a caixa de texto acima para edição. Altere o valor e clique em "Salvar Saldo de Estoque".`);
+}
+    
+    
 // Função isolada para abrir a aba Semi-Acabado sem mexer na lógica anterior
 function mostrarSecaoSemiAcabado(elem) {
   // Esconde todas as secções da página com a classe .page-section
