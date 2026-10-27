@@ -338,6 +338,7 @@ if __name__ == '__main__':
 
 # --- ROTA PARA SALVAR O SALDO DE ESTOQUE ---
 # --- ROTA PARA SALVAR O SALDO DE ESTOQUE ---
+# --- ROTA PARA SALVAR O SALDO DE ESTOQUE COM ID ---
 @app.route('/salvar_saldo', methods=['POST'])
 def salvar_saldo():
     try:
@@ -351,6 +352,19 @@ def salvar_saldo():
         nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
         agora = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
 
+        gc = conectar_google_sheets()
+        planilha = gc.open(NOME_PLANILHA_SALDOS)
+
+        try:
+            aba = planilha.worksheet(nome_aba)
+            registros_existentes = aba.get_all_records()
+            # Mapeia IDs existentes para não perdê-los se o item já existia
+            mapa_ids = {str(r.get('CODIGO', '')).strip().upper(): str(r.get('ID', '')).strip() for r in registros_existentes if r.get('CODIGO')}
+            aba.clear()
+        except gspread.exceptions.WorksheetNotFound:
+            aba = planilha.add_worksheet(title=nome_aba, rows="1000", cols="4")
+            mapa_ids = {}
+
         linhas_processadas = []
         for linha in texto_colado.strip().split('\n'):
             linha_limpa = linha.strip()
@@ -359,36 +373,111 @@ def salvar_saldo():
             
             partes = re.split(r'[\t\s]+', linha_limpa)
             if len(partes) >= 2:
-                codigo = partes[0]
-                saldo = partes[1]
-                linhas_processadas.append([codigo, saldo, agora])
+                codigo = partes[0].strip().upper()
+                saldo = partes[1].strip()
+                # Mantém o ID anterior se já existia, senão gera um novo ID curto
+                row_id = mapa_ids.get(codigo) or str(uuid.uuid4())[:8]
+                linhas_processadas.append([row_id, codigo, saldo, agora])
             elif len(partes) == 1:
-                linhas_processadas.append([partes[0], '0', agora])
+                codigo = partes[0].strip().upper()
+                row_id = mapa_ids.get(codigo) or str(uuid.uuid4())[:8]
+                linhas_processadas.append([row_id, codigo, '0', agora])
 
         if not linhas_processadas:
             return jsonify({"sucesso": False, "mensagem": "Nenhum dado válido encontrado no texto colado!"})
 
-        gc = conectar_google_sheets()
-        # Salva na planilha correta de saldos
-        planilha = gc.open(NOME_PLANILHA_SALDOS)
-
-        try:
-            aba = planilha.worksheet(nome_aba)
-            aba.clear()
-        except gspread.exceptions.WorksheetNotFound:
-            aba = planilha.add_worksheet(title=nome_aba, rows="1000", cols="3")
-
-        matriz_final = [["CODIGO", "SALDO", "ULTIMA ATUALIZACAO"]] + linhas_processadas
+        matriz_final = [["ID", "CODIGO", "SALDO", "ULTIMA ATUALIZACAO"]] + linhas_processadas
         aba.update('A1', matriz_final)
 
         return jsonify({
             "sucesso": True, 
-            "mensagem": f"Saldo de {len(linhas_processadas)} item(ns) gravado na planilha {NOME_PLANILHA_SALDOS} (aba {nome_aba}) com sucesso!"
+            "mensagem": f"Saldo de {len(linhas_processadas)} item(ns) gravado com ID na planilha {NOME_PLANILHA_SALDOS} (aba {nome_aba}) com sucesso!"
         })
 
     except Exception as e:
         print(f"Erro ao salvar saldo: {e}")
         return jsonify({"sucesso": False, "mensagem": f"Erro interno: {str(e)}"}), 500
+
+
+# --- ROTA PARA OBTER O SALDO (INCLUINDO ID) ---
+@app.route('/obter_saldo', methods=['GET'])
+def obter_saldo():
+    try:
+        data_mes_ano = request.args.get('data')
+        nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
+
+        gc = conectar_google_sheets()
+        planilha = gc.open(NOME_PLANILHA_SALDOS)
+
+        try:
+            aba = planilha.worksheet(nome_aba)
+            registros = aba.get_all_values()
+            
+            if len(registros) > 1:
+                linhas_texto = []
+                ultima_atualizacao = registros[1][3] if len(registros[1]) >= 4 else ''
+                
+                for r in registros[1:]:
+                    if len(r) >= 3:
+                        # Formato enviado: ID \t CODIGO \t SALDO
+                        linhas_texto.append(f"{r[0]}\t{r[1]}\t{r[2]}")
+                
+                return jsonify({
+                    "sucesso": True,
+                    "texto": "\n".join(linhas_texto),
+                    "ultima_atualizacao": ultima_atualizacao
+                })
+        except Exception:
+            pass
+
+        return jsonify({
+            "sucesso": True,
+            "texto": "",
+            "ultima_atualizacao": "Nenhuma atualização salva"
+        })
+
+    except Exception as e:
+        return jsonify({"sucesso": False, "mensagem": str(e)}), 500
+
+
+# --- ROTA PARA EXCLUIR UM SALDO SALVO ESPECÍFICO PELO ID ---
+@app.route('/excluir_saldo_salvo', methods=['POST'])
+def excluir_saldo_salvo():
+    try:
+        dados = request.get_json()
+        data_mes_ano = dados.get('data')
+        row_id = str(dados.get('id', '')).strip()
+
+        if not data_mes_ano or not row_id:
+            return jsonify({'sucesso': False, 'mensagem': 'Data ou ID não informados!'}), 400
+
+        nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
+        gc = conectar_google_sheets()
+        planilha = gc.open(NOME_PLANILHA_SALDOS)
+        aba = planilha.worksheet(nome_aba)
+        
+        linhas = aba.get_all_values()
+        if not linhas or len(linhas) < 2:
+            return jsonify({'sucesso': False, 'mensagem': 'Aba vazia.'}), 404
+
+        linha_encontrada = -1
+        for idx in range(1, len(linhas)):
+            if str(linhas[idx][0]).strip() == row_id:
+                linha_encontrada = idx + 1 # Linha no Sheets (1-indexada)
+                break
+
+        if linha_encontrada != -1:
+            aba.delete_rows(linha_encontrada)
+            return jsonify({'sucesso': True, 'mensagem': 'Registro excluído com sucesso pelo ID!'})
+        else:
+            return jsonify({'sucesso': False, 'mensagem': 'ID não encontrado na planilha de saldos.'}), 404
+
+    except Exception as e:
+        return jsonify({'sucesso': False, 'mensagem': f'Erro ao excluir: {str(e)}'}), 500
+
+
+
+
 
 
 # --- ROTA PARA OBTER O SALDO E A DATA/HORA DA ÚLTIMA ATUALIZAÇÃO ---
