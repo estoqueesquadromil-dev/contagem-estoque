@@ -1034,14 +1034,85 @@ async function excluirSaldoSalvoPorId(rowId) {
 }
 
 
-// --- EDITAR SALDO SALVO (JOGA PARA O TEXTAREA PARA AJUSTE RÁPIDO) ---
-function editarSaldoSalvoPorId(rowId, codigo, qtd) {
-    const txtArea = document.getElementById('txtSaldoEstoque');
-    txtArea.value = `${codigo}\t${qtd}\n` + txtArea.value;
-    txtArea.focus();
-    alert(`O item ${codigo} foi movido para a caixa de texto acima para edição. Altere o valor e clique em "Salvar Saldo de Estoque".`);
-}
+// --- EDICAO DIRETA NA TABELA DE SALDOS SALVOS USANDO O ID ---
+function editarSaldoSalvoPorId(rowId, codigo, qtdAtual) {
+    // Encontra a linha correspondente na tabela através de um atributo ou percorrendo as linhas
+    let tabela = document.getElementById('tabela-saldos-salvos');
+    let linhas = tabela.querySelectorAll('tbody tr');
     
+    let linhaAlvo = null;
+    linhas.forEach(tr => {
+        // Como o ID está guardado no botão de exclusão ou edição, podemos identificá-lo
+        let btnEditar = tr.querySelector(`button[onclick*="${rowId}"]`);
+        if (btnEditar) {
+            linhaAlvo = tr;
+        }
+    });
+
+    if (!linhaAlvo) return;
+
+    let celulaQtd = linhaAlvo.cells[2];
+    let celulaAcoes = linhaAlvo.cells[3];
+
+    // Transforma a célula da quantidade em um input direto na linha
+    celulaQtd.innerHTML = `
+        <input type="number" id="input-edit-saldo-${rowId}" class="form-control form-control-sm" value="${qtdAtual}" style="max-width: 100px;">
+    `;
+
+    // Troca o botão de ação para Salvar / Cancelar
+    celulaAcoes.innerHTML = `
+        <div class="d-flex gap-1">
+            <button class="btn btn-success btn-sm fw-bold" onclick="salvarEdicaoSaldoSalvoDireto('${rowId}', '${codigo}')"><i class="bi bi-check-lg"></i> Salvar</button>
+            <button class="btn btn-secondary btn-sm" onclick="carregarSemiAcabadosFaltaContar()">Cancelar</button>
+        </div>
+    `;
+}    
+
+
+
+
+
+async function salvarEdicaoSaldoSalvoDireto(rowId, codigo) {
+    const mes = document.getElementById('mes-semi').value;
+    const ano = document.getElementById('ano-semi').value;
+    const dataFormatada = `${mes.padStart(2, '0')}/${ano}`;
+    const novaQtd = document.getElementById(`input-edit-saldo-${rowId}`).value;
+
+    // Coleta todos os dados atuais da tabela para reconstruir a lista e atualizar na planilha
+    const tabela = document.getElementById('tabela-saldos-salvos');
+    const linhasTr = tabela.querySelectorAll('tbody tr');
+    
+    let linhasAtualizadas = [];
+    linhasTr.forEach((tr) => {
+        let cod = tr.cells[1] ? tr.cells[1].innerText.trim() : '';
+        let q = tr.cells[2].querySelector('input') ? tr.cells[2].querySelector('input').value : (tr.cells[2] ? tr.cells[2].innerText.trim() : '');
+        
+        if (cod) {
+            linhasAtualizadas.appends ? linhasAtualizadas.push(`${cod}\t${q}`) : linhasAtualizadas.push(`${cod}\t${q}`);
+        }
+    });
+
+    try {
+        const res = await fetch('/salvar_saldo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                data: dataFormatada,
+                texto: linhasAtualizadas.join('\n')
+            })
+        });
+        const dados = await res.json();
+        if (dados.sucesso) {
+            carregarSemiAcabadosFaltaContar(); // Atualiza a tabela na tela de forma limpa
+        } else {
+            alert('Erro ao atualizar saldo: ' + dados.mensagem);
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Erro de comunicação com o servidor.');
+    }
+}
+
     
 // Função isolada para abrir a aba Semi-Acabado sem mexer na lógica anterior
 function mostrarSecaoSemiAcabado(elem) {
