@@ -295,48 +295,61 @@
             </div>
         </div>
 
-        <!-- TABELA 1: ITENS SALVOS DO SALDO DE ESTOQUE -->
-        <h5 class="text-dark mt-4 mb-2">Lista de Saldos Salvos</h5>
-        <div class="table-responsive mb-4">
-            <table id="tabela-saldos-salvos" class="table table-bordered table-striped align-middle">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Mês/Ano</th>
-                        <th>Código</th>
-                        <th>Quantidade</th>
-                        <th style="width: 140px;">Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr><td colspan="4" class="text-center text-muted py-2">Nenhum saldo carregado.</td></tr>
-                </tbody>
-            </table>
+        <!-- TABELA 1: ITENS SALVOS DO SALDO DE ESTOQUE (COM BOTÃO DE RETRAIR) -->
+        <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+            <h5 class="text-dark m-0">Lista de Saldos Salvos</h5>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSaldos" aria-expanded="true" aria-controls="collapseSaldos">
+                <i class="bi bi-chevron-down"></i> Retrair / Expandir
+            </button>
+        </div>
+        <div class="collapse show" id="collapseSaldos">
+            <div class="table-responsive mb-4">
+                <table id="tabela-saldos-salvos" class="table table-bordered table-striped align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Mês/Ano</th>
+                            <th>Código</th>
+                            <th>Quantidade</th>
+                            <th style="width: 140px;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="4" class="text-center text-muted py-2">Nenhum saldo carregado.</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
-        <!-- TABELA 2: PRODUTOS QUE FALTAM CONTAR -->
-        <h5 class="text-dark mt-3 mb-2">Produtos que Faltam Contar</h5>
-        <div id="contador-pendentes-semi" class="contador-badge mb-2" style="display: inline-block; background: #fff3cd; color: #856404; padding: 6px 12px; border-radius: 4px; font-weight: bold; font-size: 13px;">
-            Total por contar: 0
+        <!-- TABELA 2: PRODUTOS QUE FALTAM CONTAR (COM BOTÃO DE RETRAIR) -->
+        <div class="d-flex justify-content-between align-items-center mt-3 mb-2">
+            <div>
+                <h5 class="text-dark m-0 d-inline-block me-2">Produtos que Faltam Contar</h5>
+                <div id="contador-pendentes-semi" class="contador-badge" style="display: inline-block; background: #fff3cd; color: #856404; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 13px;">
+                    Total por contar: 0
+                </div>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFaltam" aria-expanded="true" aria-controls="collapseFaltam">
+                <i class="bi bi-chevron-down"></i> Retrair / Expandir
+            </button>
         </div>
-    
-        <div class="table-responsive">
-            <table id="tabela-semi-acabado" class="table table-bordered table-striped align-middle">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Data</th>
-                        <th>Código</th>
-                        <th style="width: 140px;">Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr><td colspan="3" class="text-center text-muted py-3">Selecione o mês e ano e clique em Filtrar Pendentes.</td></tr>
-                </tbody>
-            </table>
+        <div class="collapse show" id="collapseFaltam">
+            <div class="table-responsive">
+                <table id="tabela-semi-acabado" class="table table-bordered table-striped align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Data</th>
+                            <th>Código</th>
+                            <th style="width: 140px;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="3" class="text-center text-muted py-3">Selecione o mês e ano e clique em Filtrar Pendentes.</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
       </div>
     </section>
-
-
     
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
@@ -1018,7 +1031,150 @@ function mostrarSecaoSemiAcabado(elem) {
 }
 
 
+
+// --- FUNÇÕES DE CONTROLE PARA A ABA SEMI-ACABADO ---
+
+async function salvarCodigosParaContar() {
+    const txt = document.getElementById('txtCodigosContar').value.trim();
+    const mes = document.getElementById('mes-semi').value;
+    const ano = document.getElementById('ano-semi').value;
     
+    if (!txt) {
+        alert('Cole os códigos na caixa de texto!');
+        return;
+    }
+
+    // Separa as linhas do texto colado
+    const linhas = txt.split('\n').map(l => l.trim()).filter(l => l);
+    const itensParaSalvar = linhas.map(codigo => ({
+        CODIGO: codigo,
+        SALDO: 0,
+        QUANTIDADE: 1,
+        DIFERENCA: -1,
+        TIPO: 'Semiacabado'
+    }));
+
+    try {
+        const res = await fetch('/salvar_lote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                data: `${mes.padStart(2, '0')}/${ano}`,
+                itens: itensParaSalvar
+            })
+        });
+        const resultado = await res.json();
+        alert(resultado.mensagem);
+        if (resultado.sucesso) {
+            document.getElementById('txtCodigosContar').value = '';
+            carregarSemiAcabadosFaltaContar();
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Erro ao salvar códigos na aba do mês.');
+    }
+}
+
+// Editar item pendente (joga o código direto para a aba de Nova Contagem)
+function editarItemPendente(idx, codigo) {
+    // Alterna para a aba de lançamento
+    mostrarSecao('lancar', document.querySelector('.sidebar a'));
+    // Preenche o campo de código
+    document.getElementById('inputProduto').value = codigo;
+    consultarSaldoItemAtual();
+}
+
+// Excluir item pendente / contagem lançada
+async function excluirItemPendente(codigo) {
+    if (!confirm(`Deseja realmente remover/excluir o registo do código ${codigo}?`)) return;
+    
+    const mes = document.getElementById('mes-semi').value;
+    const ano = document.getElementById('ano-semi').value;
+    const dataFormatada = `${mes.padStart(2, '0')}/${ano}`;
+
+    try {
+        // Busca a movimentação para encontrar o ID correspondente ao código e exclui
+        const res = await fetch(`/consultar_movimentacao?data=${encodeURIComponent(dataFormatada)}`);
+        const dados = await res.json();
+        
+        if (dados.sucesso && dados.itens) {
+            const itemEncontrado = dados.itens.find(i => i.Código.toUpperCase() === codigo.toUpperCase());
+            if (itemEncontrado) {
+                const resExcluir = await fetch('/excluir_movimentacao', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data: dataFormatada, id: itemEncontrado.ID })
+                });
+                const rData = await resExcluir.json();
+                alert(rData.mensagem);
+                carregarSemiAcabadosFaltaContar();
+                return;
+            }
+        }
+        alert('Registo não encontrado na base de dados do mês.');
+    } catch (e) {
+        console.error(e);
+        alert('Erro ao tentar excluir o item.');
+    }
+}
+
+// Editar saldo salvo (joga o texto de volta no textarea de cima para ajuste)
+function editarSaldoSalvo(idx) {
+    const tabela = document.getElementById('tabela-saldos-salvos');
+    const linha = tabela.querySelectorAll('tbody tr')[idx];
+    if (!linha) return;
+    
+    const codigo = linha.cells[1].innerText;
+    const qtd = linha.cells[2].innerText;
+    
+    const txtArea = document.getElementById('txtSaldoEstoque');
+    txtArea.value = `${codigo}\t${qtd}\n` + txtArea.value;
+    txtArea.focus();
+    
+    alert('O item foi movido para a caixa de texto acima para edição. Altere e clique em "Salvar Saldo de Estoque".');
+}
+
+// Excluir saldo salvo individualmente da lista
+async function excluirSaldoSalvo(idx) {
+    if (!confirm('Deseja remover este saldo salvo?')) return;
+    
+    const mes = document.getElementById('mes-semi').value;
+    const ano = document.getElementById('ano-semi').value;
+    const dataFormatada = `${mes.padStart(2, '0')}/${ano}`;
+
+    const tabela = document.getElementById('tabela-saldos-salvos');
+    const linhasTr = tabela.querySelectorAll('tbody tr');
+    
+    let novasLinhas = [];
+    linhasTr.forEach((tr, i) => {
+        if (i !== idx) {
+            const cod = tr.cells[1].innerText;
+            const q = tr.cells[2].innerText;
+            novasLinhas.push(`${cod}\t${q}`);
+        }
+    });
+
+    // Reenvia a lista atualizada sem o item excluído para a rota de salvar saldo
+    try {
+        const res = await fetch('/salvar_saldo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                data: dataFormatada,
+                texto: novasLinhas.join('\n')
+            })
+        });
+        const dados = await res.json();
+        if (dados.sucesso) {
+            carregarSemiAcabadosFaltaContar();
+        } else {
+            alert('Erro ao atualizar saldos: ' + dados.mensagem);
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Erro de conexão.');
+    }
+}
     
   </script>
 </body>
