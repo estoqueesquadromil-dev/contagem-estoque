@@ -1076,12 +1076,26 @@ async function salvarCodigosParaContar() {
 }
 
 // Editar item pendente (joga o código direto para a aba de Nova Contagem)
+// --- EDIÇÃO DIRETA NA TABELA DE PRODUTOS QUE FALTAM CONTAR ---
 function editarItemPendente(idx, codigo) {
-    // Alterna para a aba de lançamento
-    mostrarSecao('lancar', document.querySelector('.sidebar a'));
-    // Preenche o campo de código
-    document.getElementById('inputProduto').value = codigo;
-    consultarSaldoItemAtual();
+    const tabela = document.getElementById('tabela-semi-acabado');
+    const linha = tabela.querySelectorAll('tbody tr')[idx];
+    if (!linha) return;
+
+    const celulaCodigo = linha.cells[1];
+    const celulaAcoes = linha.cells[2];
+    const codigoAtual = celulaCodigo.innerText.trim();
+
+    celulaCodigo.innerHTML = `
+        <input type="text" id="input-edit-cod-${idx}" class="form-control form-control-sm fw-bold" value="${codigoAtual}">
+    `;
+
+    celulaAcoes.innerHTML = `
+        <div class="d-flex gap-1">
+            <button class="btn btn-success btn-sm fw-bold" onclick="salvarEdicaoItemPendente(${idx}, '${codigoAtual}')"><i class="bi bi-check-lg"></i> Salvar</button>
+            <button class="btn btn-secondary btn-sm" onclick="carregarSemiAcabadosFaltaContar()">Cancelar</button>
+        </div>
+    `;
 }
 
 // Excluir item pendente / contagem lançada
@@ -1118,22 +1132,80 @@ async function excluirItemPendente(codigo) {
     }
 }
 
-// Editar saldo salvo (joga o texto de volta no textarea de cima para ajuste)
+// --- EDIGÃO DIRETA NA TABELA DE SALDOS SALVOS ---
 function editarSaldoSalvo(idx) {
     const tabela = document.getElementById('tabela-saldos-salvos');
     const linha = tabela.querySelectorAll('tbody tr')[idx];
     if (!linha) return;
-    
-    const codigo = linha.cells[1].innerText;
-    const qtd = linha.cells[2].innerText;
-    
-    const txtArea = document.getElementById('txtSaldoEstoque');
-    txtArea.value = `${codigo}\t${qtd}\n` + txtArea.value;
-    txtArea.focus();
-    
-    alert('O item foi movido para a caixa de texto acima para edição. Altere e clique em "Salvar Saldo de Estoque".');
+
+    const celulaQtd = linha.cells[2];
+    const celulaAcoes = linha.cells[3];
+    const qtdAtual = celulaQtd.innerText.trim();
+
+    // Transforma a célula da quantidade num input e o botão de ação num botão de salvar
+    celulaQtd.innerHTML = `
+        <input type="number" id="input-edit-saldo-${idx}" class="form-control form-control-sm" value="${qtdAtual}" style="max-width: 100px;">
+    `;
+
+    celulaAcoes.innerHTML = `
+        <div class="d-flex gap-1">
+            <button class="btn btn-success btn-sm fw-bold" onclick="salvarEdicaoSaldoSalvo(${idx})"><i class="bi bi-check-lg"></i> Salvar</button>
+            <button class="btn btn-secondary btn-sm" onclick="carregarSemiAcabadosFaltaContar()">Cancelar</button>
+        </div>
+    `;
 }
 
+
+async function salvarEdicaoSaldoSalvo(idx) {
+    const mes = document.getElementById('mes-semi').value;
+    const ano = document.getElementById('ano-semi').value;
+    const dataFormatada = `${mes.padStart(2, '0')}/${ano}`;
+    const novaQtd = document.getElementById(`input-edit-saldo-${idx}`).value;
+
+    const tabela = document.getElementById('tabela-saldos-salvos');
+    const linhasTr = tabela.querySelectorAll('tbody tr');
+    
+    let linhasAtualizadas = [];
+    linhasTr.forEach((tr, i) => {
+        const cod = tr.cells[1].innerText.trim();
+        let q = tr.cells[2].innerText.trim();
+        
+        // Se for a linha que estamos editando, pega o novo valor digitado
+        if (i === idx) {
+            q = novaQtd;
+        }
+        
+        if (cod) {
+            linhasAtualizadas.push(`${cod}\t${q}`);
+        }
+    });
+
+    try {
+        const res = await fetch('/salvar_saldo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                data: dataFormatada,
+                texto: linhasAtualizadas.join('\n')
+            })
+        });
+        const dados = await res.json();
+        if (dados.sucesso) {
+            carregarSemiAcabadosFaltaContar(); // Recarrega mantendo todos os registros intactos
+        } else {
+            alert('Erro ao atualizar saldo: ' + dados.mensagem);
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Erro de comunicação.');
+    }
+}
+
+
+
+
+    
+    
 // Excluir saldo salvo individualmente da lista
 async function excluirSaldoSalvo(idx) {
     if (!confirm('Deseja remover este saldo salvo?')) return;
@@ -1175,6 +1247,68 @@ async function excluirSaldoSalvo(idx) {
         alert('Erro de conexão.');
     }
 }
+
+
+
+
+
+async function salvarEdicaoItemPendente(idx, codigoAntigo) {
+    const mes = document.getElementById('mes-semi').value;
+    const ano = document.getElementById('ano-semi').value;
+    const dataFormatada = `${mes.padStart(2, '0')}/${ano}`;
+    const novoCodigo = document.getElementById(`input-edit-cod-${idx}`).value.trim().toUpperCase();
+
+    if (!novoCodigo) {
+        alert('Informe um código válido!');
+        return;
+    }
+
+    try {
+        // Busca a movimentação para alterar o código da linha existente na planilha
+        const res = await fetch(`/consultar_movimentacao?data=${encodeURIComponent(dataFormatada)}`);
+        const dados = await res.json();
+        
+        if (dados.sucesso && dados.itens) {
+            const itemEncontrado = dados.itens.find(i => i.Código.toUpperCase() === codigoAntigo.toUpperCase());
+            if (itemEncontrado) {
+                // Atualiza o registro existente
+                const resAtualizar = await fetch('/salvar_lote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        data: dataFormatada,
+                        itens: [{
+                            CODIGO: novoCodigo,
+                            SALDO: itemEncontrado.SaldoEstoque || 0,
+                            QUANTIDADE: itemEncontrado.Quantidade || 1,
+                            DIFERENCA: itemEncontrado.Diferenca || 0,
+                            TIPO: itemEncontrado.Tipo || 'Semiacabado'
+                        }]
+                    })
+                });
+
+                // Remove o registro do código antigo
+                await fetch('/excluir_movimentacao', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data: dataFormatada, id: itemEncontrado.ID })
+                });
+
+                carregarSemiAcabadosFaltaContar();
+                return;
+            }
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Erro ao atualizar o item pendente.');
+    }
+}
+
+
+
+
+
+    
     
   </script>
 </body>
