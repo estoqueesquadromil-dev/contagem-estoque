@@ -480,45 +480,6 @@ def excluir_saldo_salvo():
 
 
 
-# --- ROTA PARA OBTER O SALDO E A DATA/HORA DA ÚLTIMA ATUALIZAÇÃO ---
-@app.route('/obter_saldo', methods=['GET'])
-def obter_saldo():
-    try:
-        data_mes_ano = request.args.get('data')
-        nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
-
-        gc = conectar_google_sheets()
-        # Lê da planilha correta de saldos
-        planilha = gc.open(NOME_PLANILHA_SALDOS)
-
-        try:
-            aba = planilha.worksheet(nome_aba)
-            registros = aba.get_all_values()
-            
-            if len(registros) > 1:
-                linhas_texto = []
-                ultima_atualizacao = registros[1][2] if len(registros[1]) >= 3 else ''
-                
-                for r in registros[1:]:
-                    if len(r) >= 2:
-                        linhas_texto.append(f"{r[0]}\t{r[1]}")
-                
-                return jsonify({
-                    "sucesso": True,
-                    "texto": "\n".join(linhas_texto),
-                    "ultima_atualizacao": ultima_atualizacao
-                })
-        except Exception:
-            pass
-
-        return jsonify({
-            "sucesso": True,
-            "texto": "",
-            "ultima_atualizacao": "Nenhuma atualização salva"
-        })
-
-    except Exception as e:
-        return jsonify({"sucesso": False, "mensagem": str(e)}), 500
 
 
 # --- ROTA PARA CONSULTAR SALDO DE UM ITEM ESPECÍFICO ---
