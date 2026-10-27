@@ -608,3 +608,74 @@ def produtos_semi_acabados_faltam():
     except Exception as e:
         print(f"Erro em produtos_semi_acabados_faltam: {e}")
         return jsonify({'sucesso': False, 'mensagem': str(e)}), 500
+
+
+
+# --- ROTA PARA SALVAR CÓDIGOS PARA CONTAGEM NA PLANILHA contagem_semi_acabado ---
+@app.route('/salvar_codigos_contar_semi', methods=['POST'])
+def salvar_codigos_contar_semi():
+    dados = request.json
+    data_mes_ano = dados.get('data')  # Ex: "10/2026"
+    codigos = dados.get('codigos', [])
+
+    if not data_mes_ano or not codigos:
+        return jsonify({'sucesso': False, 'mensagem': 'Informe o mês/ano e pelo menos um código!'})
+
+    try:
+        gc = conectar_google_sheets()
+        if not gc:
+            return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'}), 500
+
+        # Abre ESPECIFICAMENTE a planilha contagem_semi_acabado
+        planilha = gc.open(NOME_PLANILHA_SALDOS) # NOME_PLANILHA_SALDOS = 'contagem_semi_acabado'
+
+        # Procura ou cria a aba com o nome do mês e ano (Ex: "10/2026")
+        try:
+            aba = planilha.worksheet(data_mes_ano)
+        except gspread.exceptions.WorksheetNotFound:
+            aba = planilha.add_worksheet(title=data_mes_ano, rows="1000", cols="8")
+            aba.append_row(["ID", "Data", "Código", "Saldo Estoque", "Quantidade Contada", "Diferença", "Tipo", "Inventario Feito"])
+
+        # Mapeia códigos já existentes na aba para evitar duplicados
+        registros_existentes = aba.get_all_records()
+        codigos_existentes = set()
+        for reg in registros_existentes:
+            c = str(reg.get('Código', '')).strip().upper()
+            if c:
+                codigos_existentes.add(c)
+
+        linhas_adicionar = []
+        for cod in codigos:
+            cod_limpo = str(cod).strip().upper()
+            if not cod_limpo or cod_limpo in codigos_existentes:
+                continue
+            
+            row_id = str(uuid.uuid4())[:8]
+            # Adiciona linha padrão para contagem de semi-acabado
+            linhas_adicionar.append([
+                row_id,
+                data_mes_ano,
+                cod_limpo,
+                0,             # Saldo Estoque padrão
+                0,             # Quantidade Contada inicial
+                0,             # Diferença
+                'Semiacabado', # Tipo
+                'Não'          # Inventario Feito
+            ])
+            codigos_existentes.add(cod_limpo)
+
+        if linhas_adicionar:
+            aba.append_rows(linhas_adicionar)
+            return jsonify({
+                'sucesso': True, 
+                'mensagem': f'{len(linhas_adicionar)} código(s) salvo(s) com sucesso na aba {data_mes_ano} da planilha contagem_semi_acabado!'
+            })
+        else:
+            return jsonify({
+                'sucesso': True, 
+                'mensagem': 'Nenhum código novo para adicionar (já existem ou vazios).'
+            })
+
+    except Exception as e:
+        print(f"Erro ao salvar códigos em contagem_semi_acabado: {e}")
+        return jsonify({'sucesso': False, 'mensagem': f'Erro ao salvar: {str(e)}'}), 500
