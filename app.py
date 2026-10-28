@@ -572,85 +572,50 @@ def produtos_semi_acabados_faltam():
         if not mes or not ano:
             return jsonify({'sucesso': False, 'mensagem': 'Mês e ano são obrigatórios.'}), 400
             
-        nome_aba_mes = f"{int(mes):02d}/{ano}"
-        nome_aba_saldo = f"SALDO_{mes}_{ano}"
+        nome_aba_mes = f"{int(mes):02d}/{ano}" # Exemplo: "10/2026"
         
         gc = conectar_google_sheets()
         if not gc:
             return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'}), 500
             
-        planilha = gc.open(NOME_PLANILHA)
-        
-        # 1. Carrega todos os produtos oficiais da aba "todos_produtos" usando o cache existente
-        produtos_oficiais = obter_produtos_cached()
-        if not produtos_oficiais:
-            try:
-                aba_dados = planilha.worksheet("todos_produtos") # <-- Alterado de "dados" para "todos_produtos"
-                dados_brutos = aba_dados.get_all_values()
-                if len(dados_brutos) > 1:
-                    for linha in dados_brutos[1:]:
-                        if len(linha) >= 1 and str(linha[0]).strip():
-                            produtos_oficiais.append({
-                                'codigo': str(linha[0]).strip(),
-                                'descricao': str(linha[1]).strip() if len(linha) > 1 else ''
-                            })
-            except Exception:
-                pass
-
-        if not produtos_oficiais:
-            return jsonify({'sucesso': False, 'mensagem': 'Aba "todos_produtos" vazia ou não encontrada.'}), 400
-
-        # 2. Mapeia quais códigos já foram inventariados/contados na aba do mês
-        codigos_contados = set()
+        # 1. Pega os códigos que você salvou na planilha 'contagem_semi_acabado' na aba do mês (ex: 10/2026)
+        codigos_salvos_semi = []
         try:
-            aba_mes = planilha.worksheet(nome_aba_mes)
-            linhas_mes = aba_mes.get_all_values()
-            if len(linhas_mes) > 1:
-                cabecalhos_mes = [str(c).strip().upper() for c in linhas_mes[0]]
-                idx_cod = -1
-                for idx, cab in enumerate(cabecalhos_mes):
-                    if cab in ['CÓDIGO', 'CODIGO']:
-                        idx_cod = idx
-                        break
-                if idx_cod == -1:
-                    idx_cod = 2 # Padrão Coluna C
-                
-                for linha in linhas_mes[1:]:
-                    if len(linha) > idx_cod:
-                        cod = str(linha[idx_cod]).strip().upper()
-                        if cod:
-                            codigos_contados.add(cod)
-        except Exception:
-            pass
+            planilha_semi = gc.open(NOME_PLANILHA_SALDOS) # 'contagem_semi_acabado'
+            aba_semi_mes = planilha_semi.worksheet(nome_aba_mes)
+            registros_semi = aba_semi_mes.get_all_records()
+            for reg in registros_semi:
+                cod = str(reg.get('Código', '')).strip().upper()
+                if cod:
+                    codigos_salvos_semi.append(cod)
+        except Exception as e:
+            print(f"[AVISO] Aba {nome_aba_mes} não encontrada em {NOME_PLANILHA_SALDOS}: {e}")
+            return jsonify({'sucesso': True, 'itens': []})
 
-        # 3. Carrega os saldos da aba SALDO_MM_YYYY correspondente
-        saldos_dict = {}
+        if not codigos_salvos_semi:
+            return jsonify({'sucesso': True, 'itens': []})
+
+        # 2. Pega os códigos que JÁ FORAM CONTADOS na planilha principal ('todos_produtos_contagem') na aba do mês
+        codigos_ja_contados = set()
         try:
-            aba_saldo = planilha.worksheet(nome_aba_saldo)
-            registros_saldo = aba_saldo.get_all_values()
-            for linha in registros_saldo[1:]:
-                if len(linha) >= 2:
-                    cod = str(linha[0]).strip().upper()
-                    saldos_dict[cod] = str(linha[1]).strip()
-        except Exception:
-            pass
+            planilha_principal = gc.open(NOME_PLANILHA) # 'todos_produtos_contagem'
+            aba_principal_mes = planilha_principal.worksheet(nome_aba_mes)
+            registros_principal = aba_principal_mes.get_all_records()
+            for reg in registros_principal:
+                cod = str(reg.get('Código', '')).strip().upper()
+                if cod:
+                    codigos_ja_contados.add(cod)
+        except Exception as e:
+            print(f"[AVISO] Aba {nome_aba_mes} ainda não criada na planilha principal: {e}")
 
-        # 4. Filtra rigorosamente apenas os produtos oficiais que NÃO estão na lista de contados
+        # 3. Mantém APENAS os códigos da planilha de semi-acabados que NÃO estão na planilha principal
         produtos_pendentes = []
-        for p in produtos_oficiais:
-            cod = str(p.get('codigo', '')).strip()
-            cod_upper = cod.upper()
-            desc = str(p.get('descricao', ''))
-            
-            if cod and cod_upper not in codigos_contados:
-                saldo_mes = saldos_dict.get(cod_upper, '-')
-                if not saldo_mes:
-                    saldo_mes = '-'
-                    
+        for cod in codigos_salvos_semi:
+            if cod not in codigos_ja_contados:
                 produtos_pendentes.append({
                     "codigo": cod,
-                    "descricao": desc,
-                    "saldo": saldo_mes
+                    "descricao": "Semiacabado Pendente",
+                    "saldo": "-"
                 })
                 
         return jsonify({'sucesso': True, 'itens': produtos_pendentes})
@@ -658,7 +623,6 @@ def produtos_semi_acabados_faltam():
     except Exception as e:
         print(f"Erro em produtos_semi_acabados_faltam: {e}")
         return jsonify({'sucesso': False, 'mensagem': str(e)}), 500
-
 
 
 # --- ROTA PARA SALVAR CÓDIGOS PARA CONTAGEM NA PLANILHA contagem_semi_acabado ---
