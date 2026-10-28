@@ -359,6 +359,41 @@
         <h4 class="text-primary mb-3">Acessórios Primários por Contar</h4>
         <p class="text-muted" style="font-size: 14px;">Gerenciamento de saldos, colagem de códigos e controle de pendências de acessórios.</p>
     
+        <!-- BLOCÃO PARA COLAR SALDO DE ESTOQUE -->
+        <div class="card bg-light p-3 mb-4 border">
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label class="form-label fw-bold text-dark m-0">Colar Saldo de Estoque de Acessórios:</label>
+              <small class="text-muted d-block mb-2">Cole as colunas diretamente aqui (ex: AC01 10)</small>
+              <textarea id="txtSaldoEstoqueAcessorios" class="form-control" rows="3" placeholder="AC01	10&#10;AC02	5"></textarea>
+            </div>
+            <div class="col-md-4 d-flex flex-column justify-content-between">
+              <div>
+                <small class="text-muted d-block fw-semibold">Última Atualização:</small>
+                <span id="txtUltimaAtualizacaoAcessorios" class="fw-bold text-primary d-block mb-2">Nenhuma atualização salva</span>
+              </div>
+              <button class="btn btn-success fw-bold w-100" onclick="salvarSaldoEstoqueAcessorios()">
+                <i class="bi bi-save"></i> Salvar Saldo de Acessórios
+              </button>
+            </div>
+          </div>
+        </div>
+    
+        <!-- CAMPO PARA COLAR CÓDIGOS A SEREM CONTADOS -->
+        <div class="card bg-white p-3 mb-4 border shadow-sm">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-9">
+              <label class="form-label fw-bold text-dark">Colar Códigos para Contagem:</label>
+              <textarea id="txtCodigosContarAcessorios" class="form-control" rows="2" placeholder="Cole os códigos aqui..."></textarea>
+            </div>
+            <div class="col-md-3">
+              <button class="btn btn-primary fw-bold w-100" onclick="salvarCodigosAcessorios()">
+                <i class="bi bi-plus-circle"></i> Salvar na Aba do Mês
+              </button>
+            </div>
+          </div>
+        </div>
+    
         <!-- FILTROS DE MÊS E ANO -->
         <div class="row g-2 align-items-end mb-3">
             <div class="col-md-3">
@@ -375,11 +410,29 @@
                 <input type="number" id="ano-acessorios" class="form-control" value="2026">
             </div>
             <div class="col-md-3">
-                <button class="btn btn-secondary fw-bold w-100" onclick="carregarAcessoriosFaltaContar()">Filtrar Acessórios</button>
+                <button class="btn btn-secondary fw-bold w-100" onclick="carregarAcessoriosFaltaContar()">Filtrar Pendentes</button>
             </div>
         </div>
     
-        <!-- TABELA DE PRODUTOS QUE FALTAM CONTAR -->
+        <!-- TABELA 1: SALDOS SALVOS -->
+        <h5 class="text-dark mt-4 mb-2">Lista de Saldos Salvos</h5>
+        <div class="table-responsive mb-4">
+            <table id="tabela-saldos-acessorios" class="table table-bordered table-striped align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Mês/Ano</th>
+                        <th>Código</th>
+                        <th>Quantidade</th>
+                        <th style="width: 140px;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="4" class="text-center text-muted py-2">Nenhum saldo carregado.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    
+        <!-- TABELA 2: FALTAM CONTAR -->
         <h5 class="text-dark mt-3 mb-2">Acessórios que Faltam Contar</h5>
         <div id="contador-pendentes-acessorios" class="contador-badge mb-2" style="display: inline-block; background: #fff3cd; color: #856404; padding: 6px 12px; border-radius: 4px; font-weight: bold; font-size: 13px;">
             Total por contar: 0
@@ -391,12 +444,11 @@
                     <tr>
                         <th>Data</th>
                         <th>Código</th>
-                        <th>Saldo</th>
                         <th style="width: 140px;">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr><td colspan="4" class="text-center text-muted py-3">Selecione o mês e ano e clique em Filtrar Acessórios.</td></tr>
+                    <tr><td colspan="3" class="text-center text-muted py-3">Selecione o mês e ano e clique em Filtrar Pendentes.</td></tr>
                 </tbody>
             </table>
         </div>
@@ -1471,15 +1523,71 @@ function mostrarSecaoAcessorios(elem) {
   document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
   
   const secAcessorios = document.getElementById('sec-acessorios');
-  if (secAcessorios) {
-    secAcessorios.classList.add('active');
-  }
-  
-  if (elem) {
-    elem.classList.add('active');
-  }
+  if (secAcessorios) secAcessorios.classList.add('active');
+  if (elem) elem.classList.add('active');
   
   carregarAcessoriosFaltaContar();
+}
+
+async function salvarCodigosAcessorios() {
+    const txt = document.getElementById('txtCodigosContarAcessorios').value.trim();
+    const mes = document.getElementById('mes-acessorios').value;
+    const ano = document.getElementById('ano-acessorios').value;
+    const dataFormatada = `${mes.padStart(2, '0')}/${ano}`;
+    
+    if (!txt) {
+        alert('Cole os códigos na caixa de texto!');
+        return;
+    }
+
+    const listaCodigos = txt.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+    try {
+        const res = await fetch('/salvar_codigos_contar_acessorios', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: dataFormatada, codigos: listaCodigos })
+        });
+        const resultado = await res.json();
+        alert(resultado.mensagem);
+        if (resultado.sucesso) {
+            document.getElementById('txtCodigosContarAcessorios').value = '';
+            carregarAcessoriosFaltaContar();
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Erro ao salvar códigos.');
+    }
+}
+
+async function salvarSaldoEstoqueAcessorios() {
+    const txtArea = document.getElementById('txtSaldoEstoqueAcessorios');
+    const textoColado = txtArea.value.trim();
+    const mes = document.getElementById('mes-acessorios').value;
+    const ano = document.getElementById('ano-acessorios').value;
+    const dataConsulta = `${mes}/${ano}`;
+
+    if (!textoColado) {
+        alert('Cole os dados antes de salvar!');
+        return;
+    }
+
+    try {
+        const res = await fetch('/salvar_saldo_acessorios', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: dataConsulta, texto: textoColado })
+        });
+        const dados = await res.json();
+        alert(dados.mensagem);
+        if (dados.sucesso) {
+            txtArea.value = '';
+            carregarAcessoriosFaltaContar();
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Erro ao salvar saldo de acessórios!');
+    }
 }
 
 async function carregarAcessoriosFaltaContar() {
@@ -1487,9 +1595,10 @@ async function carregarAcessoriosFaltaContar() {
     let ano = document.getElementById('ano-acessorios').value;
     let dataFormatada = `${mes.padStart(2, '0')}/${ano}`;
     let tbodyFalta = document.querySelector('#tabela-acessorios-faltam tbody');
+    let tbodySaldos = document.querySelector('#tabela-saldos-acessorios tbody');
     let contadorBadge = document.getElementById('contador-pendentes-acessorios');
 
-    tbodyFalta.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 15px;">A verificar acessórios...</td></tr>';
+    tbodyFalta.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 15px;">A verificar acessórios...</td></tr>';
 
     try {
         let resposta = await fetch(`/produtos_acessorios_faltam?mes=${mes}&ano=${ano}`);
@@ -1501,14 +1610,13 @@ async function carregarAcessoriosFaltaContar() {
             tbodyFalta.innerHTML = '';
 
             if (itens.length === 0) {
-                tbodyFalta.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #28a745; font-weight: bold; padding: 15px;">Parabéns! Todos os acessórios primários já foram contados neste mês.</td></tr>';
+                tbodyFalta.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #28a745; font-weight: bold; padding: 15px;">Parabéns! Todos os acessórios já foram contados.</td></tr>';
             } else {
                 itens.forEach((item) => {
                     let tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td style="padding: 8px; border: 1px solid #ddd;">${dataFormatada}</td>
                         <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${item.codigo}</td>
-                        <td style="padding: 8px; border: 1px solid #ddd;">${item.saldo}</td>
                         <td style="padding: 8px; border: 1px solid #ddd;">
                             <button class="btn btn-danger btn-sm" onclick="excluirItemPendente('${item.codigo}')">Excluir</button>
                         </td>
@@ -1517,9 +1625,65 @@ async function carregarAcessoriosFaltaContar() {
                 });
             }
         }
+
+        // Carrega saldos salvos
+        let resSaldos = await fetch(`/obter_saldo_acessorios?data=${dataFormatada}`);
+        let dadosSaldos = await resSaldos.json();
+        tbodySaldos.innerHTML = '';
+
+        if (dadosSaldos.sucesso && dadosSaldos.texto) {
+            let linhas = dadosSaldos.texto.split('\n');
+            linhas.forEach((linha) => {
+                let partes = linha.split('\t');
+                if (partes.length >= 3) {
+                    let idReg = partes[0];
+                    let codigo = partes[1];
+                    let qtd = partes[2];
+
+                    let tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="padding: 8px; border: 1px solid #ddd;">${dataFormatada}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${codigo}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${qtd}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">
+                            <button class="btn btn-danger btn-sm" onclick="excluirSaldoAcessorios('${idReg}')">Excluir</button>
+                        </td>
+                    `;
+                    tbodySaldos.appendChild(tr);
+                }
+            });
+        }
+
+        if (tbodySaldos.innerHTML === '') {
+            tbodySaldos.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-2">Nenhum saldo guardado.</td></tr>';
+        }
+
     } catch (err) {
         console.error(err);
-        tbodyFalta.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red; padding: 15px;">Erro de comunicação com o servidor.</td></tr>';
+        tbodyFalta.innerHTML = '<tr><td colspan="3" style="text-align: center; color: red; padding: 15px;">Erro de comunicação.</td></tr>';
+    }
+}
+
+async function excluirSaldoAcessorios(rowId) {
+    if (!confirm('Deseja remover este saldo salvo?')) return;
+    const mes = document.getElementById('mes-acessorios').value;
+    const ano = document.getElementById('ano-acessorios').value;
+    const dataFormatada = `${mes.padStart(2, '0')}/${ano}`;
+
+    try {
+        const res = await fetch('/excluir_saldo_acessorios', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: dataFormatada, id: rowId })
+        });
+        const dados = await res.json();
+        if (dados.sucesso) {
+            carregarAcessoriosFaltaContar();
+        } else {
+            alert('Erro: ' + dados.mensagem);
+        }
+    } catch (e) {
+        console.error(e);
     }
 }
 
