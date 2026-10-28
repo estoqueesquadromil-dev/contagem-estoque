@@ -1688,7 +1688,21 @@ async function excluirSaldoAcessorios(rowId) {
 }
 
 
-    
+// Adiciona o fechamento automático da sidebar ao clicar em qualquer link do menu em telas menores ou por preferência
+document.querySelectorAll('.sidebar a').forEach(link => {
+    link.addEventListener('click', function() {
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.getElementById('mainContent');
+        
+        // Se a sidebar NÃO estiver recolhida (ou seja, aberta), fecha ela
+        if (!sidebar.classList.contains('collapsed')) {
+            sidebar.classList.add('collapsed');
+            mainContent.classList.add('expanded');
+        }
+    });
+});
+
+
     
   </script>
 </body>
