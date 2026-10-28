@@ -58,6 +58,7 @@
     <a href="#" class="nav-link-item active" onclick="mostrarSecao('lancar', this)"><i class="bi bi-plus-circle"></i> Nova Contagem</a>
     <a href="#" class="nav-link-item" onclick="mostrarSecao('consultar', this)"><i class="bi bi-journal-text"></i> Consultar Lotes</a>
     <a href="#" class="nav-link-item" onclick="mostrarSecaoSemiAcabado(this)"><i class="bi bi-clock-history"></i> Semi_Acabado (Falta Contar)</a>
+    <a href="#" class="nav-link-item" onclick="mostrarSecaoAcessorios(this)"><i class="bi bi-box-seam"></i> Acessórios (Falta Contar)</a>
   </nav>
 
   <main class="main-content" id="mainContent">
@@ -350,7 +351,58 @@
         </div>
       </div>
     </section>
+
     
+    <!-- PAINEL ACESSÓRIOS: PRODUTOS POR CONTAR -->
+    <section id="sec-acessorios" class="page-section">
+      <div class="card p-4 mb-4">
+        <h4 class="text-primary mb-3">Acessórios Primários por Contar</h4>
+        <p class="text-muted" style="font-size: 14px;">Gerenciamento de saldos, colagem de códigos e controle de pendências de acessórios.</p>
+    
+        <!-- FILTROS DE MÊS E ANO -->
+        <div class="row g-2 align-items-end mb-3">
+            <div class="col-md-3">
+                <label for="mes-acessorios" class="form-label fw-semibold">Mês:</label>
+                <select id="mes-acessorios" class="form-select">
+                    <option value="1">01 - Janeiro</option><option value="2">02 - Fevereiro</option><option value="3">03 - Março</option>
+                    <option value="4">04 - Abril</option><option value="5">05 - Maio</option><option value="6">06 - Junho</option>
+                    <option value="7">07 - Julho</option><option value="8">08 - Agosto</option><option value="9">09 - Setembro</option>
+                    <option value="10" selected>10 - Outubro</option><option value="11">11 - Novembro</option><option value="12">12 - Dezembro</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="ano-acessorios" class="form-label fw-semibold">Ano:</label>
+                <input type="number" id="ano-acessorios" class="form-control" value="2026">
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-secondary fw-bold w-100" onclick="carregarAcessoriosFaltaContar()">Filtrar Acessórios</button>
+            </div>
+        </div>
+    
+        <!-- TABELA DE PRODUTOS QUE FALTAM CONTAR -->
+        <h5 class="text-dark mt-3 mb-2">Acessórios que Faltam Contar</h5>
+        <div id="contador-pendentes-acessorios" class="contador-badge mb-2" style="display: inline-block; background: #fff3cd; color: #856404; padding: 6px 12px; border-radius: 4px; font-weight: bold; font-size: 13px;">
+            Total por contar: 0
+        </div>
+    
+        <div class="table-responsive">
+            <table id="tabela-acessorios-faltam" class="table table-bordered table-striped align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Data</th>
+                        <th>Código</th>
+                        <th>Saldo</th>
+                        <th style="width: 140px;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="4" class="text-center text-muted py-3">Selecione o mês e ano e clique em Filtrar Acessórios.</td></tr>
+                </tbody>
+            </table>
+        </div>
+      </div>
+    </section>
+        
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
 
@@ -1414,7 +1466,62 @@ async function salvarEdicaoItemPendente(idx, codigoAntigo) {
 }
 
 
+function mostrarSecaoAcessorios(elem) {
+  document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
+  
+  const secAcessorios = document.getElementById('sec-acessorios');
+  if (secAcessorios) {
+    secAcessorios.classList.add('active');
+  }
+  
+  if (elem) {
+    elem.classList.add('active');
+  }
+  
+  carregarAcessoriosFaltaContar();
+}
 
+async function carregarAcessoriosFaltaContar() {
+    let mes = document.getElementById('mes-acessorios').value;
+    let ano = document.getElementById('ano-acessorios').value;
+    let dataFormatada = `${mes.padStart(2, '0')}/${ano}`;
+    let tbodyFalta = document.querySelector('#tabela-acessorios-faltam tbody');
+    let contadorBadge = document.getElementById('contador-pendentes-acessorios');
+
+    tbodyFalta.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 15px;">A verificar acessórios...</td></tr>';
+
+    try {
+        let resposta = await fetch(`/produtos_acessorios_faltam?mes=${mes}&ano=${ano}`);
+        let resultado = await resposta.json();
+
+        if (resultado.sucesso) {
+            let itens = resultado.itens || [];
+            contadorBadge.textContent = `Total por contar: ${itens.length} acessórios`;
+            tbodyFalta.innerHTML = '';
+
+            if (itens.length === 0) {
+                tbodyFalta.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #28a745; font-weight: bold; padding: 15px;">Parabéns! Todos os acessórios primários já foram contados neste mês.</td></tr>';
+            } else {
+                itens.forEach((item) => {
+                    let tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="padding: 8px; border: 1px solid #ddd;">${dataFormatada}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${item.codigo}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${item.saldo}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">
+                            <button class="btn btn-danger btn-sm" onclick="excluirItemPendente('${item.codigo}')">Excluir</button>
+                        </td>
+                    `;
+                    tbodyFalta.appendChild(tr);
+                });
+            }
+        }
+    } catch (err) {
+        console.error(err);
+        tbodyFalta.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red; padding: 15px;">Erro de comunicação com o servidor.</td></tr>';
+    }
+}
 
 
     
