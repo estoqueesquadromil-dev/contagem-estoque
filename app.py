@@ -709,3 +709,84 @@ def salvar_codigos_contar_semi():
     except Exception as e:
         print(f"Erro ao salvar códigos em contagem_semi_acabado: {e}")
         return jsonify({'sucesso': False, 'mensagem': f'Erro ao salvar: {str(e)}'}), 500
+
+
+
+@app.route('/produtos_ acessorios_faltam', methods=['GET'])
+def produtos_acessorios_faltam():
+    try:
+        mes = request.args.get('mes', '').strip()
+        ano = request.args.get('ano', '').strip()
+        
+        if not mes or not ano:
+            return jsonify({'sucesso': False, 'mensagem': 'Mês e ano são obrigatórios.'}), 400
+            
+        nome_aba_mes = f"{int(mes):02d}/{ano}"             # Exemplo: "10/2026"
+        nome_aba_saldo = f"SALDO_ACESSORIOS_{int(mes):02d}_{ano}" # Ou a aba de saldo específica para acessórios
+        
+        gc = conectar_google_sheets()
+        if not gc:
+            return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'}), 500
+            
+        planilha_semi = gc.open(NOME_PLANILHA_SALDOS) # 'contagem_semi_acabado'
+
+        # 1. Carrega os saldos salvos para os acessórios
+        saldos_dict = {}
+        try:
+            aba_saldo = planilha_semi.worksheet(nome_aba_saldo)
+            registros_saldo = aba_saldo.get_all_values()
+            for linha in registros_saldo[1:]:
+                if len(linha) >= 3:
+                    cod = str(linha[1]).strip().upper()
+                    sld = str(linha[2]).strip()
+                    saldos_dict[cod] = sld
+        except Exception:
+            pass
+
+        # 2. Pega os códigos salvos na aba de acessórios do mês
+        codigos_salvos = []
+        try:
+            aba_mes = planilha_semi.worksheet(f"ACESSORIOS_{nome_aba_mes.replace('/', '_')}")
+            registros = aba_mes.get_all_records()
+            for reg in registros:
+                cod = str(reg.get('Código', '')).strip().upper()
+                if cod:
+                    codigos_salvos.append(cod)
+        except Exception:
+            return jsonify({'sucesso': True, 'itens': []})
+
+        if not codigos_salvos:
+            return jsonify({'sucesso': True, 'itens': []})
+
+        # 3. Verifica quais já foram contados na planilha principal
+        codigos_ja_contados = set()
+        try:
+            planilha_principal = gc.open(NOME_PLANILHA)
+            aba_principal_mes = planilha_principal.worksheet(nome_aba_mes)
+            registros_principal = aba_principal_mes.get_all_records()
+            for reg in registros_principal:
+                tipo_reg = str(reg.get('Tipo', '')).strip()
+                # Filtra apenas do tipo Acessório Primário
+                if 'Acessório Primário' in tipo_reg:
+                    cod = str(reg.get('Código', '')).strip().upper()
+                    if cod:
+                        codigos_ja_contados.add(cod)
+        except Exception:
+            pass
+
+        # 4. Retorna os pendentes do tipo Acessório Primário
+        produtos_pendentes = []
+        for cod in codigos_salvos:
+            if cod not in codigos_ja_contados:
+                saldo_item = saldos_dict.get(cod, "0")
+                produtos_pendentes.append({
+                    "codigo": cod,
+                    "descricao": "Acessório Primário Pendente",
+                    "saldo": saldo_item
+                })
+                
+        return jsonify({'sucesso': True, 'itens': produtos_pendentes})
+        
+    except Exception as e:
+        print(f"Erro em produtos_acessorios_faltam: {e}")
+        return jsonify({'sucesso': False, 'mensagem': str(e)}), 500
