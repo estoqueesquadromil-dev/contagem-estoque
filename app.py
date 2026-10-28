@@ -18,6 +18,7 @@ app = Flask(__name__)
 NOME_PLANILHA = 'todos_produtos_contagem'
 # Nome da planilha onde ficam as abas de saldo (ex: SALDO_10_2026)
 NOME_PLANILHA_SALDOS = 'contagem_semi_acabado'
+NOME_PLANILHA_ACESSORIOS = 'Acessórios_Primários'
 
 
 CACHE_PRODUTOS = []
@@ -712,7 +713,171 @@ def salvar_codigos_contar_semi():
 
 
 
-@app.route('/produtos_ acessorios_faltam', methods=['GET'])
+
+
+
+# --- ROTA PARA SALVAR CÓDIGOS DE ACESSÓRIOS NA ABA DO MÊS ---
+@app.route('/salvar_codigos_contar_acessorios', methods=['POST'])
+def salvar_codigos_contar_acessorios():
+    dados = request.json
+    data_mes_ano = dados.get('data')  # Ex: "10/2026"
+    codigos = dados.get('codigos', [])
+
+    if not data_mes_ano or not codigos:
+        return jsonify({'sucesso': False, 'mensagem': 'Informe o mês/ano e pelo menos um código!'})
+
+    try:
+        gc = conectar_google_sheets()
+        if not gc:
+            return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'}), 500
+
+        planilha = gc.open(NOME_PLANILHA_ACESSORIOS)
+
+        try:
+            aba = planilha.worksheet(data_mes_ano)
+        except gspread.exceptions.WorksheetNotFound:
+            aba = planilha.add_worksheet(title=data_mes_ano, rows="1000", cols="8")
+            aba.append_row(["ID", "Data", "Código", "Saldo Estoque", "Quantidade Contada", "Diferença", "Tipo", "Inventario Feito"])
+
+        registros_existentes = aba.get_all_records()
+        codigos_existentes = set()
+        for reg in registros_existentes:
+            c = str(reg.get('Código', '')).strip().upper()
+            if c:
+                codigos_existentes.add(c)
+
+        linhas_adicionar = []
+        for cod in codigos:
+            cod_limpo = str(cod).strip().upper()
+            if not cod_limpo or cod_limpo in codigos_existentes:
+                continue
+            
+            row_id = str(uuid.uuid4())[:8]
+            linhas_adicionar.append([
+                row_id,
+                data_mes_ano,
+                cod_limpo,
+                0,
+                0,
+                0,
+                'Acessório Primário',
+                'Não'
+            ])
+            codigos_existentes.add(cod_limpo)
+
+        if linhas_adicionar:
+            aba.append_rows(linhas_adicionar)
+            return jsonify({
+                'sucesso': True, 
+                'mensagem': f'{len(linhas_adicionar)} código(s) de acessórios salvo(s) com sucesso na aba {data_mes_ano}!'
+            })
+        else:
+            return jsonify({
+                'sucesso': True, 
+                'mensagem': 'Nenhum código novo para adicionar (já existem ou vazios).'
+            })
+
+    except Exception as e:
+        print(f"Erro ao salvar códigos em Acessórios_Primários: {e}")
+        return jsonify({'sucesso': False, 'mensagem': f'Erro ao salvar: {str(e)}'}), 500
+
+
+# --- ROTA PARA SALVAR SALDO DE ACESSÓRIOS ---
+@app.route('/salvar_saldo_acessorios', methods=['POST'])
+def salvar_saldo_acessorios():
+    try:
+        dados = request.json
+        data_mes_ano = dados.get('data')  # Ex: "10/2026"
+        texto_colado = dados.get('texto', '')
+
+        if not data_mes_ano or not texto_colado:
+            return jsonify({'sucesso': False, 'mensagem': 'Dados incompletos!'})
+
+        nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
+        agora = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+
+        gc = conectar_google_sheets()
+        planilha = gc.open(NOME_PLANILHA_ACESSORIOS)
+
+        try:
+            aba = planilha.worksheet(nome_aba)
+            registros_existentes = aba.get_all_records()
+            mapa_ids = {str(r.get('CODIGO', '')).strip().upper(): str(r.get('ID', '')).strip() for r in registros_existentes if r.get('CODIGO')}
+            aba.clear()
+        except gspread.exceptions.WorksheetNotFound:
+            aba = planilha.add_worksheet(title=nome_aba, rows="1000", cols="4")
+            mapa_ids = {}
+
+        linhas_processadas = []
+        for linha in texto_colado.strip().split('\n'):
+            linha_limpa = linha.strip()
+            if not linha_limpa:
+                continue
+            
+            partes = re.split(r'[\t\s]+', linha_limpa)
+            if len(partes) >= 2:
+                codigo = partes[0].strip().upper()
+                saldo = partes[1].strip()
+                row_id = mapa_ids.get(codigo) or str(uuid.uuid4())[:8]
+                linhas_processadas.append([row_id, codigo, saldo, agora])
+            elif len(partes) == 1:
+                codigo = partes[0].strip().upper()
+                row_id = mapa_ids.get(codigo) or str(uuid.uuid4())[:8]
+                linhas_processadas.append([row_id, codigo, '0', agora])
+
+        if not linhas_processadas:
+            return jsonify({"sucesso": False, "mensagem": "Nenhum dado válido encontrado!"})
+
+        matriz_final = [["ID", "CODIGO", "SALDO", "ULTIMA ATUALIZACAO"]] + linhas_processadas
+        aba.update('A1', matriz_final)
+
+        return jsonify({
+            "sucesso": True, 
+            "mensagem": f"Saldo de {len(linhas_processadas)} acessório(s) gravado com sucesso!"
+        })
+
+    except Exception as e:
+        print(f"Erro ao salvar saldo de acessórios: {e}")
+        return jsonify({"sucesso": False, "mensagem": f"Erro interno: {str(e)}"}), 500
+
+
+# --- ROTA PARA OBTER SALDO DE ACESSÓRIOS ---
+@app.route('/obter_saldo_acessorios', methods=['GET'])
+def obter_saldo_acessorios():
+    try:
+        data_mes_ano = request.args.get('data')
+        nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
+
+        gc = conectar_google_sheets()
+        planilha = gc.open(NOME_PLANILHA_ACESSORIOS)
+
+        try:
+            aba = planilha.worksheet(nome_aba)
+            registros = aba.get_all_values()
+            
+            if len(registros) > 1:
+                linhas_texto = []
+                ultima_atualizacao = registros[1][3] if len(registros[1]) >= 4 else ''
+                
+                for r in registros[1:]:
+                    if len(r) >= 3:
+                        linhas_texto.append(f"{r[0]}\t{r[1]}\t{r[2]}")
+                
+                return jsonify({
+                    "sucesso": True,
+                    "texto": "\n".join(linhas_texto),
+                    "ultima_atualizacao": ultima_atualizacao
+                })
+        except Exception:
+            pass
+
+        return jsonify({"sucesso": True, "texto": "", "ultima_atualizacao": "Nenhuma atualização salva"})
+    except Exception as e:
+        return jsonify({"sucesso": False, "mensagem": str(e)}), 500
+
+
+# --- ROTA PARA OBTER PRODUTOS DE ACESSÓRIOS QUE FALTAM CONTAR ---
+@app.route('/produtos_acessorios_faltam', methods=['GET'])
 def produtos_acessorios_faltam():
     try:
         mes = request.args.get('mes', '').strip()
@@ -721,19 +886,19 @@ def produtos_acessorios_faltam():
         if not mes or not ano:
             return jsonify({'sucesso': False, 'mensagem': 'Mês e ano são obrigatórios.'}), 400
             
-        nome_aba_mes = f"{int(mes):02d}/{ano}"             # Exemplo: "10/2026"
-        nome_aba_saldo = f"SALDO_ACESSORIOS_{int(mes):02d}_{ano}" # Ou a aba de saldo específica para acessórios
+        nome_aba_mes = f"{int(mes):02d}/{ano}"
+        nome_aba_saldo = f"SALDO_{int(mes):02d}_{ano}"
         
         gc = conectar_google_sheets()
         if not gc:
             return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'}), 500
             
-        planilha_semi = gc.open(NOME_PLANILHA_SALDOS) # 'contagem_semi_acabado'
+        planilha_acessorios = gc.open(NOME_PLANILHA_ACESSORIOS)
 
-        # 1. Carrega os saldos salvos para os acessórios
+        # 1. Carrega saldos da aba SALDO_MM_YYYY
         saldos_dict = {}
         try:
-            aba_saldo = planilha_semi.worksheet(nome_aba_saldo)
+            aba_saldo = planilha_acessorios.worksheet(nome_aba_saldo)
             registros_saldo = aba_saldo.get_all_values()
             for linha in registros_saldo[1:]:
                 if len(linha) >= 3:
@@ -743,12 +908,12 @@ def produtos_acessorios_faltam():
         except Exception:
             pass
 
-        # 2. Pega os códigos salvos na aba de acessórios do mês
+        # 2. Pega códigos salvos na aba do mês na planilha de acessórios
         codigos_salvos = []
         try:
-            aba_mes = planilha_semi.worksheet(f"ACESSORIOS_{nome_aba_mes.replace('/', '_')}")
-            registros = aba_mes.get_all_records()
-            for reg in registros:
+            aba_mes = planilha_acessorios.worksheet(nome_aba_mes)
+            registros_semi = aba_mes.get_all_records()
+            for reg in registros_semi:
                 cod = str(reg.get('Código', '')).strip().upper()
                 if cod:
                     codigos_salvos.append(cod)
@@ -758,23 +923,22 @@ def produtos_acessorios_faltam():
         if not codigos_salvos:
             return jsonify({'sucesso': True, 'itens': []})
 
-        # 3. Verifica quais já foram contados na planilha principal
+        # 3. Verifica quais já foram contados na planilha principal (filtrando apenas por "Acessório Primário")
         codigos_ja_contados = set()
         try:
             planilha_principal = gc.open(NOME_PLANILHA)
             aba_principal_mes = planilha_principal.worksheet(nome_aba_mes)
             registros_principal = aba_principal_mes.get_all_records()
             for reg in registros_principal:
-                tipo_reg = str(reg.get('Tipo', '')).strip()
-                # Filtra apenas do tipo Acessório Primário
-                if 'Acessório Primário' in tipo_reg:
+                tipo = str(reg.get('Tipo', '')).strip()
+                if tipo == 'Acessório Primário':
                     cod = str(reg.get('Código', '')).strip().upper()
                     if cod:
                         codigos_ja_contados.add(cod)
         except Exception:
             pass
 
-        # 4. Retorna os pendentes do tipo Acessório Primário
+        # 4. Filtra os pendentes
         produtos_pendentes = []
         for cod in codigos_salvos:
             if cod not in codigos_ja_contados:
@@ -790,3 +954,39 @@ def produtos_acessorios_faltam():
     except Exception as e:
         print(f"Erro em produtos_acessorios_faltam: {e}")
         return jsonify({'sucesso': False, 'mensagem': str(e)}), 500
+
+
+# --- ROTA PARA EXCLUIR SALDO DE ACESSÓRIOS PELO ID ---
+@app.route('/excluir_saldo_acessorios', methods=['POST'])
+def excluir_saldo_acessorios():
+    try:
+        dados = request.get_json()
+        data_mes_ano = dados.get('data')
+        row_id = str(dados.get('id', '')).strip()
+
+        if not data_mes_ano or not row_id:
+            return jsonify({'sucesso': False, 'mensagem': 'Data ou ID não informados!'}), 400
+
+        nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
+        gc = conectar_google_sheets()
+        planilha = gc.open(NOME_PLANILHA_ACESSORIOS)
+        aba = planilha.worksheet(nome_aba)
+        
+        linhas = aba.get_all_values()
+        if not linhas or len(linhas) < 2:
+            return jsonify({'sucesso': False, 'mensagem': 'Aba vazia.'}), 404
+
+        linha_encontrada = -1
+        for idx in range(1, len(linhas)):
+            if str(linhas[idx][0]).strip() == row_id:
+                linha_encontrada = idx + 1
+                break
+
+        if linha_encontrada != -1:
+            aba.delete_rows(linha_encontrada)
+            return jsonify({'sucesso': True, 'mensagem': 'Registro excluído com sucesso!'})
+        else:
+            return jsonify({'sucesso': False, 'mensagem': 'ID não encontrado.'}), 404
+
+    except Exception as e:
+        return jsonify({'sucesso': False, 'mensagem': f'Erro: {str(e)}'}), 500
