@@ -204,24 +204,23 @@ def consultar_movimentacao():
         
         gc = conectar_google_sheets()
 
-        # 1. Carregar o dicionário de saldos da aba SALDO_MM_YYYY da planilha de saldos correta
+        # 1. Carregar o dicionário de saldos (Coluna B = Código, Coluna C = Saldo)
         saldos_dict = {}
         try:
             planilha_saldos = gc.open(NOME_PLANILHA_SALDOS)
             aba_saldo = planilha_saldos.worksheet(nome_aba_saldo)
             registros_saldo = aba_saldo.get_all_values()
             for linha in registros_saldo[1:]:  # Pula o cabeçalho
-                if len(linha) >= 2:
-                    cod = str(linha[0]).strip().upper()
-                    # Tenta converter o saldo para inteiro ou float com segurança
-                    sld_str = str(linha[1]).strip().replace(',', '.')
+                if len(linha) >= 3:
+                    cod = str(linha[1]).strip().upper() # Índice 1 = Código (Coluna B)
+                    sld_str = str(linha[2]).strip().replace(',', '.') # Índice 2 = Saldo (Coluna C)
                     try:
                         sld = int(float(sld_str))
                     except ValueError:
                         sld = 0
                     saldos_dict[cod] = sld
         except Exception as e:
-            print(f"[AVISO] Não foi possível ler a aba de saldo {nome_aba_saldo} na planilha {NOME_PLANILHA_SALDOS}: {e}")
+            print(f"[AVISO] Não foi possível ler a aba de saldo {nome_aba_saldo}: {e}")
 
         # 2. Carregar os itens da movimentação da aba do mês na planilha principal
         try:
@@ -234,7 +233,7 @@ def consultar_movimentacao():
                 codigo = str(r.get("Código", "")).strip()
                 codigo_upper = codigo.upper()
                 
-                # Pega o saldo real diretamente do dicionário carregado da aba de saldo
+                # Pega o saldo correto mapeado do dicionário
                 saldo_estoque = saldos_dict.get(codigo_upper, 0)
                 
                 qtd = r.get("Quantidade Contada", r.get("Quantidade", 0))
@@ -243,7 +242,6 @@ def consultar_movimentacao():
                 except ValueError:
                     qtd_int = 0
                 
-                # Recalcula a diferença correta (Quantidade Contada - Saldo de Estoque)
                 diferenca = qtd_int - saldo_estoque
 
                 itens_formatados.append({
@@ -494,7 +492,6 @@ def obter_saldo_item():
             return jsonify({'sucesso': False, 'saldo': 0})
 
         gc = conectar_google_sheets()
-        # Lê da planilha correta de saldos
         planilha = gc.open(NOME_PLANILHA_SALDOS)
 
         try:
@@ -502,12 +499,12 @@ def obter_saldo_item():
             registros = aba.get_all_values()
             
             for linha in registros[1:]:
-                if len(linha) >= 2:
-                    cod_na_planilha = str(linha[0]).strip().upper()
+                if len(linha) >= 3:
+                    cod_na_planilha = str(linha[1]).strip().upper() # Índice 1 = Código (Coluna B)
                     if cod_na_planilha == codigo_busca:
                         return jsonify({
                             'sucesso': True,
-                            'saldo': linha[1]
+                            'saldo': linha[2] # Índice 2 = Saldo (Coluna C)
                         })
         except Exception:
             pass
@@ -572,16 +569,31 @@ def produtos_semi_acabados_faltam():
         if not mes or not ano:
             return jsonify({'sucesso': False, 'mensagem': 'Mês e ano são obrigatórios.'}), 400
             
-        nome_aba_mes = f"{int(mes):02d}/{ano}" # Exemplo: "10/2026"
+        nome_aba_mes = f"{int(mes):02d}/{ano}"             # Exemplo: "10/2026"
+        nome_aba_saldo = f"SALDO_{int(mes):02d}_{ano}"     # Exemplo: "SALDO_10_2026"
         
         gc = conectar_google_sheets()
         if not gc:
             return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'}), 500
             
-        # 1. Pega os códigos que você salvou na planilha 'contagem_semi_acabado' na aba do mês (ex: 10/2026)
+        planilha_semi = gc.open(NOME_PLANILHA_SALDOS) # 'contagem_semi_acabado'
+
+        # 1. Carrega o dicionário de saldos da aba SALDO_MM_YYYY (Coluna B = Código, Coluna C = Saldo)
+        saldos_dict = {}
+        try:
+            aba_saldo = planilha_semi.worksheet(nome_aba_saldo)
+            registros_saldo = aba_saldo.get_all_values()
+            for linha in registros_saldo[1:]:  # Pula o cabeçalho [ID, CODIGO, SALDO, ...]
+                if len(linha) >= 3:
+                    cod = str(linha[1]).strip().upper()  # Índice 1 = Coluna B (Código)
+                    sld = str(linha[2]).strip()          # Índice 2 = Coluna C (Saldo)
+                    saldos_dict[cod] = sld
+        except Exception as e:
+            print(f"[AVISO] Aba de saldo {nome_aba_saldo} não encontrada em {NOME_PLANILHA_SALDOS}: {e}")
+
+        # 2. Pega os códigos salvos na aba do mês (ex: 10/2026) da planilha 'contagem_semi_acabado'
         codigos_salvos_semi = []
         try:
-            planilha_semi = gc.open(NOME_PLANILHA_SALDOS) # 'contagem_semi_acabado'
             aba_semi_mes = planilha_semi.worksheet(nome_aba_mes)
             registros_semi = aba_semi_mes.get_all_records()
             for reg in registros_semi:
@@ -595,7 +607,7 @@ def produtos_semi_acabados_faltam():
         if not codigos_salvos_semi:
             return jsonify({'sucesso': True, 'itens': []})
 
-        # 2. Pega os códigos que JÁ FORAM CONTADOS na planilha principal ('todos_produtos_contagem') na aba do mês
+        # 3. Pega os códigos que JÁ FORAM CONTADOS na planilha principal ('todos_produtos_contagem')
         codigos_ja_contados = set()
         try:
             planilha_principal = gc.open(NOME_PLANILHA) # 'todos_produtos_contagem'
@@ -608,14 +620,15 @@ def produtos_semi_acabados_faltam():
         except Exception as e:
             print(f"[AVISO] Aba {nome_aba_mes} ainda não criada na planilha principal: {e}")
 
-        # 3. Mantém APENAS os códigos da planilha de semi-acabados que NÃO estão na planilha principal
+        # 4. Filtra: traz o saldo correto para os produtos que ainda NÃO foram contados
         produtos_pendentes = []
         for cod in codigos_salvos_semi:
             if cod not in codigos_ja_contados:
+                saldo_item = saldos_dict.get(cod, "0")
                 produtos_pendentes.append({
                     "codigo": cod,
                     "descricao": "Semiacabado Pendente",
-                    "saldo": "-"
+                    "saldo": saldo_item
                 })
                 
         return jsonify({'sucesso': True, 'itens': produtos_pendentes})
@@ -623,6 +636,9 @@ def produtos_semi_acabados_faltam():
     except Exception as e:
         print(f"Erro em produtos_semi_acabados_faltam: {e}")
         return jsonify({'sucesso': False, 'mensagem': str(e)}), 500
+
+
+
 
 
 # --- ROTA PARA SALVAR CÓDIGOS PARA CONTAGEM NA PLANILHA contagem_semi_acabado ---
