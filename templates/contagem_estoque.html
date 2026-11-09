@@ -353,7 +353,7 @@
     </section>
 
     
-    <!-- PAINEL ACESSÓRIOS: PRODUTOS POR CONTAR -->
+<!-- PAINEL ACESSÓRIOS: PRODUTOS POR CONTAR -->
     <section id="sec-acessorios" class="page-section">
       <div class="card p-4 mb-4">
         <h4 class="text-primary mb-3">Acessórios Primários por Contar</h4>
@@ -414,43 +414,58 @@
             </div>
         </div>
     
-        <!-- TABELA 1: SALDOS SALVOS -->
-        <h5 class="text-dark mt-4 mb-2">Lista de Saldos Salvos</h5>
-        <div class="table-responsive mb-4">
-            <table id="tabela-saldos-acessorios" class="table table-bordered table-striped align-middle">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Mês/Ano</th>
-                        <th>Código</th>
-                        <th>Quantidade</th>
-                        <th style="width: 140px;">Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr><td colspan="4" class="text-center text-muted py-2">Nenhum saldo carregado.</td></tr>
-                </tbody>
-            </table>
+        <!-- TABELA 1: SALDOS SALVOS (COM RETRAIR/EXPANDIR) -->
+        <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+            <h5 class="text-dark m-0">Lista de Saldos Salvos</h5>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSaldosAcessorios" aria-expanded="true" aria-controls="collapseSaldosAcessorios">
+                <i class="bi bi-chevron-down"></i> Retrair / Expandir
+            </button>
+        </div>
+        <div class="collapse show" id="collapseSaldosAcessorios">
+            <div class="table-responsive mb-4">
+                <table id="tabela-saldos-acessorios" class="table table-bordered table-striped align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Mês/Ano</th>
+                            <th>Código</th>
+                            <th>Quantidade</th>
+                            <th style="width: 140px;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="4" class="text-center text-muted py-2">Nenhum saldo carregado.</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     
-        <!-- TABELA 2: FALTAM CONTAR -->
-        <h5 class="text-dark mt-3 mb-2">Acessórios que Faltam Contar</h5>
-        <div id="contador-pendentes-acessorios" class="contador-badge mb-2" style="display: inline-block; background: #fff3cd; color: #856404; padding: 6px 12px; border-radius: 4px; font-weight: bold; font-size: 13px;">
-            Total por contar: 0
+        <!-- TABELA 2: FALTAM CONTAR (COM RETRAIR/EXPANDIR) -->
+        <div class="d-flex justify-content-between align-items-center mt-3 mb-2">
+            <div>
+                <h5 class="text-dark m-0 d-inline-block me-2">Acessórios que Faltam Contar</h5>
+                <div id="contador-pendentes-acessorios" class="contador-badge" style="display: inline-block; background: #fff3cd; color: #856404; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 13px;">
+                    Total por contar: 0
+                </div>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFaltamAcessorios" aria-expanded="true" aria-controls="collapseFaltamAcessorios">
+                <i class="bi bi-chevron-down"></i> Retrair / Expandir
+            </button>
         </div>
-    
-        <div class="table-responsive">
-            <table id="tabela-acessorios-faltam" class="table table-bordered table-striped align-middle">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Data</th>
-                        <th>Código</th>
-                        <th style="width: 140px;">Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr><td colspan="3" class="text-center text-muted py-3">Selecione o mês e ano e clique em Filtrar Pendentes.</td></tr>
-                </tbody>
-            </table>
+        <div class="collapse show" id="collapseFaltamAcessorios">
+            <div class="table-responsive">
+                <table id="tabela-acessorios-faltam" class="table table-bordered table-striped align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Data</th>
+                            <th>Código</th>
+                            <th style="width: 140px;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="3" class="text-center text-muted py-3">Selecione o mês e ano e clique em Filtrar Pendentes.</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
       </div>
     </section>
@@ -1617,13 +1632,16 @@ async function carregarAcessoriosFaltaContar() {
             if (itens.length === 0) {
                 tbodyFalta.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #28a745; font-weight: bold; padding: 15px;">Parabéns! Todos os acessórios já foram contados.</td></tr>';
             } else {
-                itens.forEach((item) => {
+                itens.forEach((item, idx) => {
                     let tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td style="padding: 8px; border: 1px solid #ddd;">${dataFormatada}</td>
                         <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${item.codigo}</td>
                         <td style="padding: 8px; border: 1px solid #ddd;">
-                            <button class="btn btn-danger btn-sm" onclick="excluirItemPendente('${item.codigo}')">Excluir</button>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-warning btn-sm fw-bold text-dark" onclick="editarItemPendenteAcessorios(${idx}, '${item.codigo}')">Editar</button>
+                                <button class="btn btn-danger btn-sm" onclick="excluirItemPendenteAcessorios('${item.codigo}')">Excluir</button>
+                            </div>
                         </td>
                     `;
                     tbodyFalta.appendChild(tr);
@@ -1631,7 +1649,7 @@ async function carregarAcessoriosFaltaContar() {
             }
         }
 
-        // Carrega saldos salvos
+        // Carrega saldos salvos com ID
         let resSaldos = await fetch(`/obter_saldo_acessorios?data=${dataFormatada}`);
         let dadosSaldos = await resSaldos.json();
         tbodySaldos.innerHTML = '';
@@ -1651,7 +1669,10 @@ async function carregarAcessoriosFaltaContar() {
                         <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${codigo}</td>
                         <td style="padding: 8px; border: 1px solid #ddd;">${qtd}</td>
                         <td style="padding: 8px; border: 1px solid #ddd;">
-                            <button class="btn btn-danger btn-sm" onclick="excluirSaldoAcessorios('${idReg}')">Excluir</button>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-warning btn-sm fw-bold text-dark" onclick="editarSaldoAcessoriosSalvoPorId('${idReg}', '${codigo}', '${qtd}')">Editar</button>
+                                <button class="btn btn-danger btn-sm" onclick="excluirSaldoAcessorios('${idReg}')">Excluir</button>
+                            </div>
                         </td>
                     `;
                     tbodySaldos.appendChild(tr);
@@ -1669,6 +1690,30 @@ async function carregarAcessoriosFaltaContar() {
     }
 }
 
+
+// Editar item pendente de acessórios
+function editarItemPendenteAcessorios(idx, codigo) {
+    const tabela = document.getElementById('tabela-acessorios-faltam');
+    const linha = tabela.querySelectorAll('tbody tr')[idx];
+    if (!linha) return;
+
+    const celulaCodigo = linha.cells[1];
+    const celulaAcoes = linha.cells[2];
+    const codigoAtual = celulaCodigo.innerText.trim();
+
+    celulaCodigo.innerHTML = `
+        <input type="text" id="input-edit-cod-acess-${idx}" class="form-control form-control-sm fw-bold" value="${codigoAtual}">
+    `;
+
+    celulaAcoes.innerHTML = `
+        <div class="d-flex gap-1">
+            <button class="btn btn-success btn-sm fw-bold" onclick="salvarEdicaoItemPendenteAcessorios(${idx}, '${codigoAtual}')"><i class="bi bi-check-lg"></i> Salvar</button>
+            <button class="btn btn-secondary btn-sm" onclick="carregarAcessoriosFaltaContar()">Cancelar</button>
+        </div>
+    `;
+}
+
+    
 async function excluirSaldoAcessorios(rowId) {
     if (!confirm('Deseja remover este saldo salvo?')) return;
     const mes = document.getElementById('mes-acessorios').value;
@@ -1707,7 +1752,167 @@ document.querySelectorAll('.sidebar a').forEach(link => {
     });
 });
 
+async function salvarEdicaoItemPendenteAcessorios(idx, codigoAntigo) {
+    const mes = document.getElementById('mes-acessorios').value;
+    const ano = document.getElementById('ano-acessorios').value;
+    const dataFormatada = `${mes.padStart(2, '0')}/${ano}`;
+    const novoCodigo = document.getElementById(`input-edit-cod-acess-${idx}`).value.trim().toUpperCase();
 
+    if (!novoCodigo) {
+        alert('Informe um código válido!');
+        return;
+    }
+
+    try {
+        const res = await fetch(`/consultar_movimentacao?data=${encodeURIComponent(dataFormatada)}`);
+        const dados = await res.json();
+        
+        if (dados.sucesso && dados.itens) {
+            const itemEncontrado = dados.itens.find(i => i.Código.toUpperCase() === codigoAntigo.toUpperCase());
+            if (itemEncontrado) {
+                await fetch('/salvar_lote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        data: dataFormatada,
+                        itens: [{
+                            CODIGO: novoCodigo,
+                            SALDO: itemEncontrado.SaldoEstoque || 0,
+                            QUANTIDADE: itemEncontrado.Quantidade || 1,
+                            DIFERENCA: itemEncontrado.Diferenca || 0,
+                            TIPO: 'Acessório Primário'
+                        }]
+                    })
+                });
+
+                await fetch('/excluir_movimentacao', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data: dataFormatada, id: itemEncontrado.ID })
+                });
+
+                carregarAcessoriosFaltaContar();
+                return;
+            }
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Erro ao atualizar o item pendente.');
+    }
+}
+
+
+async function excluirItemPendenteAcessorios(codigo) {
+    if (!confirm(`Deseja realmente remover/excluir o registo do código ${codigo}?`)) return;
+    
+    const mes = document.getElementById('mes-acessorios').value;
+    const ano = document.getElementById('ano-acessorios').value;
+    const dataFormatada = `${mes.padStart(2, '0')}/${ano}`;
+
+    try {
+        const res = await fetch(`/consultar_movimentacao?data=${encodeURIComponent(dataFormatada)}`);
+        const dados = await res.json();
+        
+        if (dados.sucesso && dados.itens) {
+            const itemEncontrado = dados.itens.find(i => i.Código.toUpperCase() === codigo.toUpperCase());
+            if (itemEncontrado) {
+                const resExcluir = await fetch('/excluir_movimentacao', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data: dataFormatada, id: itemEncontrado.ID })
+                });
+                const rData = await resExcluir.json();
+                alert(rData.mensagem);
+                carregarAcessoriosFaltaContar();
+                return;
+            }
+        }
+        alert('Registo não encontrado na base de dados do mês.');
+    } catch (e) {
+        console.error(e);
+        alert('Erro ao tentar excluir o item.');
+    }
+}
+
+
+
+
+// Edição direta do saldo salvo de acessórios usando o ID
+function editarSaldoAcessoriosSalvoPorId(rowId, codigo, qtdAtual) {
+    let tabela = document.getElementById('tabela-saldos-acessorios');
+    let linhas = tabela.querySelectorAll('tbody tr');
+    
+    let linhaAlvo = null;
+    linhas.forEach(tr => {
+        let btnEditar = tr.querySelector(`button[onclick*="${rowId}"]`);
+        if (btnEditar) linhaAlvo = tr;
+    });
+
+    if (!linhaAlvo) return;
+
+    let celulaQtd = linhaAlvo.cells[2];
+    let celulaAcoes = linhaAlvo.cells[3];
+
+    celulaQtd.innerHTML = `
+        <input type="number" id="input-edit-saldo-acess-${rowId}" class="form-control form-control-sm" value="${qtdAtual}" style="max-width: 100px;">
+    `;
+
+    celulaAcoes.innerHTML = `
+        <div class="d-flex gap-1">
+            <button class="btn btn-success btn-sm fw-bold" onclick="salvarEdicaoSaldoAcessoriosDireto('${rowId}')"><i class="bi bi-check-lg"></i> Salvar</button>
+            <button class="btn btn-secondary btn-sm" onclick="carregarAcessoriosFaltaContar()">Cancelar</button>
+        </div>
+    `;
+}
+
+
+
+
+
+async function salvarEdicaoSaldoAcessoriosDireto(rowId) {
+    const mes = document.getElementById('mes-acessorios').value;
+    const ano = document.getElementById('ano-acessorios').value;
+    const dataFormatada = `${mes.padStart(2, '0')}/${ano}`;
+    const novaQtd = document.getElementById(`input-edit-saldo-acess-${rowId}`).value;
+
+    const tabela = document.getElementById('tabela-saldos-acessorios');
+    const linhasTr = tabela.querySelectorAll('tbody tr');
+    
+    let linhasAtualizadas = [];
+    linhasTr.forEach((tr) => {
+        let cod = tr.cells[1] ? tr.cells[1].innerText.trim() : '';
+        let q = tr.cells[2].querySelector('input') ? tr.cells[2].querySelector('input').value : (tr.cells[2] ? tr.cells[2].innerText.trim() : '');
+        
+        if (cod) {
+            linhasAtualizadas.push(`${cod}\t${q}`);
+        }
+    });
+
+    try {
+        const res = await fetch('/salvar_saldo_acessorios', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                data: dataFormatada,
+                texto: linhasAtualizadas.join('\n')
+            })
+        });
+        const dados = await res.json();
+        if (dados.sucesso) {
+            carregarAcessoriosFaltaContar();
+        } else {
+            alert('Erro ao atualizar saldo: ' + dados.mensagem);
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Erro de comunicação com o servidor.');
+    }
+}
+
+
+
+
+    
     
   </script>
 </body>
