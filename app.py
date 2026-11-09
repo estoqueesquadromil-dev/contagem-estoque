@@ -482,18 +482,26 @@ def excluir_saldo_salvo():
 
 
 # --- ROTA PARA CONSULTAR SALDO DE UM ITEM ESPECÍFICO ---
+# --- ROTA PARA CONSULTAR SALDO DE UM ITEM ESPECÍFICO DINAMICAMENTE POR TIPO ---
 @app.route('/obter_saldo_item', methods=['GET'])
 def obter_saldo_item():
     try:
         codigo_busca = str(request.args.get('codigo', '')).strip().upper()
         data_mes_ano = request.args.get('data', '')
+        tipo_produto = str(request.args.get('tipo', 'Semiacabado')).strip()
         nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
 
         if not codigo_busca or not data_mes_ano:
             return jsonify({'sucesso': False, 'saldo': 0})
 
+        # Define qual planilha consultar com base no tipo do produto
+        if tipo_produto == 'Acessório Primário':
+            nome_planilha_alvo = NOME_PLANILHA_ACESSORIOS # 'Acessórios_Primários'
+        else:
+            nome_planilha_alvo = NOME_PLANILHA_SALDOS # 'contagem_semi_acabado' (padrão para semiacabados e outros)
+
         gc = conectar_google_sheets()
-        planilha = gc.open(NOME_PLANILHA_SALDOS)
+        planilha = gc.open(nome_planilha_alvo)
 
         try:
             aba = planilha.worksheet(nome_aba)
@@ -501,11 +509,11 @@ def obter_saldo_item():
             
             for linha in registros[1:]:
                 if len(linha) >= 3:
-                    cod_na_planilha = str(linha[1]).strip().upper() # Índice 1 = Código (Coluna B)
+                    cod_na_planilha = str(linha[1]).strip().upper() # Coluna B = Código
                     if cod_na_planilha == codigo_busca:
                         return jsonify({
                             'sucesso': True,
-                            'saldo': linha[2] # Índice 2 = Saldo (Coluna C)
+                            'saldo': linha[2] # Coluna C = Saldo
                         })
         except Exception:
             pass
