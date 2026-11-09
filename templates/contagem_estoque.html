@@ -94,7 +94,7 @@
           </div>
           <div class="col-md-3">
             <label class="form-label fw-semibold">Tipo do Produto:</label>
-            <select id="selectTipo" class="form-select">
+            <select id="selectTipo" class="form-select" onchange="consultarSaldoItemAtual()">
               <option value="Produto Acabado">Produto Acabado</option>
               <option value="Acessório Primário">Acessório Primário</option>
               <option value="Acessório Almoxarifado">Acessório Almoxarifado</option>
@@ -861,10 +861,12 @@ consultarMovimentacao = function() {
 let saldoItemAtual = 0;
 
 // Busca o saldo do item pesquisado na aba SALDO_MM_YYYY do Sheets
+// Busca o saldo do item pesquisado na planilha correta dependendo do tipo selecionado
 async function consultarSaldoItemAtual() {
   const codigo = inputProd.value.trim();
   const mes = document.getElementById('selectMes').value;
   const ano = document.getElementById('selectAno').value;
+  const tipo = document.getElementById('selectTipo').value; // Pega o tipo selecionado
   const dataConsulta = `${mes}/${ano}`;
 
   if (!codigo) {
@@ -873,7 +875,7 @@ async function consultarSaldoItemAtual() {
   }
 
   try {
-    const res = await fetch(`/obter_saldo_item?codigo=${encodeURIComponent(codigo)}&data=${encodeURIComponent(dataConsulta)}`);
+    const res = await fetch(`/obter_saldo_item?codigo=${encodeURIComponent(codigo)}&data=${encodeURIComponent(dataConsulta)}&tipo=${encodeURIComponent(tipo)}`);
     const dados = await res.json();
 
     if (dados.sucesso) {
@@ -890,6 +892,9 @@ async function consultarSaldoItemAtual() {
     zerarPainelSaldo();
   }
 }
+
+
+    
 
 // Calcula a diferença entre a quantidade digitada e o saldo em estoque
 function calcularDiferencaSaldo() {
