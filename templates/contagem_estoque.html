@@ -894,7 +894,9 @@ async function consultarSaldoItemAtual() {
     const dados = await res.json();
 
     if (dados.sucesso) {
-      saldoItemAtual = parseFloat(dados.saldo) || 0;
+      // AJUSTE APLICADO AQUI: Remove o ponto de milhar e trata vírgula caso exista
+      saldoItemAtual = parseFloat(String(dados.saldo).replace(/\./g, '').replace(',', '.')) || 0;
+      
       document.getElementById('txtSaldoItem').innerText = saldoItemAtual;
       calcularDiferencaSaldo();
     } else {
@@ -907,7 +909,6 @@ async function consultarSaldoItemAtual() {
     zerarPainelSaldo();
   }
 }
-
 
     
 
