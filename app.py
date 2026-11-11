@@ -205,7 +205,7 @@ def consultar_movimentacao():
         
         gc = conectar_google_sheets()
 
-        # 1. Carregar dicionários de saldos de ambas as planilhas para garantir abrangência
+        # 1. Carregar dicionários de saldos com tratamento do ponto de milhar
         saldos_semi_dict = {}
         try:
             planilha_saldos = gc.open(NOME_PLANILHA_SALDOS)
@@ -221,7 +221,7 @@ def consultar_movimentacao():
         saldos_acessorios_dict = {}
         try:
             planilha_acess = gc.open(NOME_PLANILHA_ACESSORIOS)
-            aba_acess = planilha_acessorios.worksheet(nome_aba_saldo)
+            aba_acess = planilha_acess.worksheet(nome_aba_saldo)
             for linha in aba_acess.get_all_values()[1:]:
                 if len(linha) >= 3:
                     cod = str(linha[1]).strip().upper()
@@ -242,7 +242,7 @@ def consultar_movimentacao():
                 codigo_upper = codigo.upper()
                 tipo_prod = str(r.get("Tipo", "Semiacabado")).strip()
                 
-                # Seleciona o dicionário de saldo correto com base no tipo do produto
+                # Seleciona o dicionário correto conforme o tipo do produto
                 if tipo_prod == 'Acessório Primário':
                     saldo_estoque = saldos_acessorios_dict.get(codigo_upper, 0)
                 else:
