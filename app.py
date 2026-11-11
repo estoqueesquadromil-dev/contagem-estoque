@@ -214,7 +214,9 @@ def consultar_movimentacao():
             for linha in registros_saldo[1:]:  # Pula o cabeçalho
                 if len(linha) >= 3:
                     cod = str(linha[1]).strip().upper() # Índice 1 = Código (Coluna B)
-                    sld_str = str(linha[2]).strip().replace(',', '.') # Índice 2 = Saldo (Coluna C)
+                    
+                    # AJUSTE: Remove o ponto de milhar (ex: "2.600" -> "2600") e substitui vírgula por ponto
+                    sld_str = str(linha[2]).strip().replace('.', '').replace(',', '.')
                     try:
                         sld = int(float(sld_str))
                     except ValueError:
@@ -511,9 +513,16 @@ def obter_saldo_item():
                 if len(linha) >= 3:
                     cod_na_planilha = str(linha[1]).strip().upper() # Coluna B = Código
                     if cod_na_planilha == codigo_busca:
+                        # AJUSTE: Limpa o saldo removendo o ponto de milhar e convertendo corretamente
+                        saldo_str = str(linha[2]).strip().replace('.', '').replace(',', '.')
+                        try:
+                            saldo_limpo = int(float(saldo_str))
+                        except ValueError:
+                            saldo_limpo = 0
+
                         return jsonify({
                             'sucesso': True,
-                            'saldo': linha[2] # Coluna C = Saldo
+                            'saldo': saldo_limpo # Coluna C = Saldo limpo
                         })
         except Exception:
             pass
