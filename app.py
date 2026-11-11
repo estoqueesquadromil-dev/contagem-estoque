@@ -509,7 +509,7 @@ def obter_saldo_item():
         if tipo_produto == 'Acessório Primário':
             nome_planilha_alvo = NOME_PLANILHA_ACESSORIOS # 'Acessórios_Primários'
         else:
-            nome_planilha_alvo = NOME_PLANILHA_SALDOS # 'contagem_semi_acabado' (padrão para semiacabados e outros)
+            nome_planilha_alvo = NOME_PLANILHA_SALDOS # 'contagem_semi_acabado'
 
         gc = conectar_google_sheets()
         planilha = gc.open(nome_planilha_alvo)
@@ -522,7 +522,7 @@ def obter_saldo_item():
                 if len(linha) >= 3:
                     cod_na_planilha = str(linha[1]).strip().upper() # Coluna B = Código
                     if cod_na_planilha == codigo_busca:
-                        # AJUSTE: Limpa o saldo removendo o ponto de milhar e convertendo corretamente
+                        # Limpa o saldo removendo o ponto de milhar (ex: "2.600" -> 2600)
                         saldo_str = str(linha[2]).strip().replace('.', '').replace(',', '.')
                         try:
                             saldo_limpo = int(float(saldo_str))
@@ -531,7 +531,7 @@ def obter_saldo_item():
 
                         return jsonify({
                             'sucesso': True,
-                            'saldo': saldo_limpo # Coluna C = Saldo limpo
+                            'saldo': saldo_limpo
                         })
         except Exception:
             pass
@@ -541,8 +541,6 @@ def obter_saldo_item():
     except Exception as e:
         print(f"Erro ao obter saldo do item: {e}")
         return jsonify({'sucesso': False, 'saldo': 0})
-
-
 
 
 
