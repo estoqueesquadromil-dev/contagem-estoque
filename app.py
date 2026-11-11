@@ -200,30 +200,35 @@ def salvar_lote():
 @app.route('/consultar_movimentacao', methods=['GET'])
 def consultar_movimentacao():
     try:
-        data_consulta = request.args.get('data') # Ex: "10/2026"
+        data_consulta = request.args.get('data') # Ex: "11/2026"
         nome_aba_saldo = f"SALDO_{data_consulta.replace('/', '_')}"
         
         gc = conectar_google_sheets()
 
-        # 1. Carregar o dicionário de saldos (Coluna B = Código, Coluna C = Saldo)
-        saldos_dict = {}
+        # 1. Carregar dicionários de saldos de ambas as planilhas para garantir abrangência
+        saldos_semi_dict = {}
         try:
             planilha_saldos = gc.open(NOME_PLANILHA_SALDOS)
             aba_saldo = planilha_saldos.worksheet(nome_aba_saldo)
-            registros_saldo = aba_saldo.get_all_values()
-            for linha in registros_saldo[1:]:  # Pula o cabeçalho
+            for linha in aba_saldo.get_all_values()[1:]:
                 if len(linha) >= 3:
-                    cod = str(linha[1]).strip().upper() # Índice 1 = Código (Coluna B)
-                    
-                    # AJUSTE: Remove o ponto de milhar (ex: "2.600" -> "2600") e substitui vírgula por ponto
+                    cod = str(linha[1]).strip().upper()
                     sld_str = str(linha[2]).strip().replace('.', '').replace(',', '.')
-                    try:
-                        sld = int(float(sld_str))
-                    except ValueError:
-                        sld = 0
-                    saldos_dict[cod] = sld
-        except Exception as e:
-            print(f"[AVISO] Não foi possível ler a aba de saldo {nome_aba_saldo}: {e}")
+                    saldos_semi_dict[cod] = int(float(sld_str)) if sld_str else 0
+        except Exception:
+            pass
+
+        saldos_acessorios_dict = {}
+        try:
+            planilha_acess = gc.open(NOME_PLANILHA_ACESSORIOS)
+            aba_acess = planilha_acessorios.worksheet(nome_aba_saldo)
+            for linha in aba_acess.get_all_values()[1:]:
+                if len(linha) >= 3:
+                    cod = str(linha[1]).strip().upper()
+                    sld_str = str(linha[2]).strip().replace('.', '').replace(',', '.')
+                    saldos_acessorios_dict[cod] = int(float(sld_str)) if sld_str else 0
+        except Exception:
+            pass
 
         # 2. Carregar os itens da movimentação da aba do mês na planilha principal
         try:
@@ -235,13 +240,17 @@ def consultar_movimentacao():
             for r in registros:
                 codigo = str(r.get("Código", "")).strip()
                 codigo_upper = codigo.upper()
+                tipo_prod = str(r.get("Tipo", "Semiacabado")).strip()
                 
-                # Pega o saldo correto mapeado do dicionário
-                saldo_estoque = saldos_dict.get(codigo_upper, 0)
+                # Seleciona o dicionário de saldo correto com base no tipo do produto
+                if tipo_prod == 'Acessório Primário':
+                    saldo_estoque = saldos_acessorios_dict.get(codigo_upper, 0)
+                else:
+                    saldo_estoque = saldos_semi_dict.get(codigo_upper, 0)
                 
                 qtd = r.get("Quantidade Contada", r.get("Quantidade", 0))
                 try:
-                    qtd_int = int(float(str(qtd).strip().replace(',', '.')))
+                    qtd_int = int(float(str(qtd).strip().replace('.', '').replace(',', '.')))
                 except ValueError:
                     qtd_int = 0
                 
@@ -254,7 +263,7 @@ def consultar_movimentacao():
                     "SaldoEstoque": saldo_estoque,
                     "Quantidade": qtd_int,
                     "Diferenca": diferenca,
-                    "Tipo": str(r.get("Tipo", "Semiacabado")),
+                    "Tipo": tipo_prod,
                     "Inventario Feito": str(r.get("Inventario Feito", "Não"))
                 })
 
