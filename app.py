@@ -200,60 +200,51 @@ def salvar_lote():
 @app.route('/consultar_movimentacao', methods=['GET'])
 def consultar_movimentacao():
     try:
-        data_consulta = request.args.get('data') # Ex: "11/2026"
-        nome_aba_saldo = f"SALDO_{data_consulta.replace('/', '_')}"
-        
+        data_consulta = request.args.get('data')  # Ex: "11/2026"
+        if not data_consulta:
+            return jsonify({"sucesso": False, "mensagem": "Data não informada."})
+
         gc = conectar_google_sheets()
+        if not gc:
+            return jsonify({"sucesso": False, "mensagem": "Erro de conexão com o Google Sheets."})
 
-        # 1. Carregar dicionários de saldos com tratamento do ponto de milhar
-        saldos_semi_dict = {}
-        try:
-            planilha_saldos = gc.open(NOME_PLANILHA_SALDOS)
-            aba_saldo = planilha_saldos.worksheet(nome_aba_saldo)
-            for linha in aba_saldo.get_all_values()[1:]:
-                if len(linha) >= 3:
-                    cod = str(linha[1]).strip().upper()
-                    sld_str = str(linha[2]).strip().replace('.', '').replace(',', '.')
-                    saldos_semi_dict[cod] = int(float(sld_str)) if sld_str else 0
-        except Exception:
-            pass
+        def converter_para_inteiro(valor):
+            if valor is None or valor == "":
+                return 0
+            if isinstance(valor, (int, float)):
+                return int(valor)
+            texto = str(valor).strip()
+            # Trata formato brasileiro (ex: "1.200" -> 1200; "10,5" -> 10)
+            if '.' in texto and ',' in texto:
+                texto = texto.replace('.', '').replace(',', '.')
+            elif '.' in texto:
+                partes = texto.split('.')
+                if len(partes[-1]) == 3 and all(p.isdigit() for p in partes):
+                    texto = texto.replace('.', '')
+            elif ',' in texto:
+                texto = texto.replace(',', '.')
+            try:
+                return int(float(texto))
+            except ValueError:
+                return 0
 
-        saldos_acessorios_dict = {}
-        try:
-            planilha_acess = gc.open(NOME_PLANILHA_ACESSORIOS)
-            aba_acess = planilha_acess.worksheet(nome_aba_saldo)
-            for linha in aba_acess.get_all_values()[1:]:
-                if len(linha) >= 3:
-                    cod = str(linha[1]).strip().upper()
-                    sld_str = str(linha[2]).strip().replace('.', '').replace(',', '.')
-                    saldos_acessorios_dict[cod] = int(float(sld_str)) if sld_str else 0
-        except Exception:
-            pass
-
-        # 2. Carregar os itens da movimentação da aba do mês na planilha principal
         try:
             planilha_principal = gc.open(NOME_PLANILHA)
             sheet_mov = planilha_principal.worksheet(data_consulta)
             registros = sheet_mov.get_all_records()
-            
+
             itens_formatados = []
             for r in registros:
                 codigo = str(r.get("Código", "")).strip()
-                codigo_upper = codigo.upper()
                 tipo_prod = str(r.get("Tipo", "Semiacabado")).strip()
-                
-                # Seleciona o dicionário correto conforme o tipo do produto
-                if tipo_prod == 'Acessório Primário':
-                    saldo_estoque = saldos_acessorios_dict.get(codigo_upper, 0)
-                else:
-                    saldo_estoque = saldos_semi_dict.get(codigo_upper, 0)
-                
+
+                # Usa o Saldo Estoque já salvo na contagem (não sobrescreve ao mudar o saldo geral)
+                saldo_salvo = r.get("Saldo Estoque", 0)
+                saldo_estoque = converter_para_inteiro(saldo_salvo)
+
                 qtd = r.get("Quantidade Contada", r.get("Quantidade", 0))
-                try:
-                    qtd_int = int(float(str(qtd).strip().replace('.', '').replace(',', '.')))
-                except ValueError:
-                    qtd_int = 0
-                
+                qtd_int = converter_para_inteiro(qtd)
+
                 diferenca = qtd_int - saldo_estoque
 
                 itens_formatados.append({
