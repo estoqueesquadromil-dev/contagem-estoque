@@ -861,6 +861,7 @@ async function buscarSaldoAtual(dataConsulta) {
 }
 
 // Atualiza a busca de saldo ao trocar/filtrar
+// Atualiza a busca de saldo ao trocar/filtrar
 const funcaoConsultarOriginal = consultarMovimentacao;
 consultarMovimentacao = function() {
     const mes = document.getElementById('selectMesConsulta').value;
