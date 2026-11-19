@@ -108,7 +108,7 @@
           </div>
           <div class="col-md-2">
             <label class="form-label fw-semibold">Quantidade:</label>
-            <input type="number" id="inputQtd" class="form-control" value="1" min="1" oninput="calcularDiferencaSaldo()">
+            <input type="number" id="inputQtd" class="form-control" value="0" min="0" oninput="calcularDiferencaSaldo()">
           </div>
           <div class="col-md-3 d-flex align-items-end">
             <button class="btn btn-success w-100 fw-bold" onclick="adicionarItem()"><i class="bi bi-plus-lg"></i> Adicionar</button>
@@ -557,8 +557,9 @@ function adicionarItem() {
     return;
   }
 
-  const qtd = parseInt(document.getElementById('inputQtd').value) || 1;
-  const saldo = saldoItemAtual;
+  const qtdBruta = parseInt(document.getElementById('inputQtd').value, 10);
+  const qtd = Number.isNaN(qtdBruta) ? 0 : qtdBruta;
+  const saldo = Number(saldoItemAtual) || 0;
   const diferenca = qtd - saldo;
 
   listaLote.push({
@@ -571,8 +572,8 @@ function adicionarItem() {
 
   produtoSelecionado = null;
   inputProd.value = '';
-  document.getElementById('inputQtd').value = 1;
-  
+  document.getElementById('inputQtd').value = 0;
+
   zerarPainelSaldo();
   renderTabela();
   inputProd.focus();
