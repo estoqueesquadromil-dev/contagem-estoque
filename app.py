@@ -21,6 +21,20 @@ NOME_PLANILHA_SALDOS = 'contagem_semi_acabado'
 NOME_PLANILHA_ACESSORIOS = 'Acessórios_Primários'
 
 
+PLANILHAS_TIPOS = {
+    'acessório primário': NOME_PLANILHA_ACESSORIOS,
+    'acessório almoxarifado': 'Acessório Almoxarifado',
+    'folha de porta madeira': 'Folha de Porta Madeira',
+    'perfil': 'Perfil',
+    'produto acabado': 'Produto Acabado',
+    'subproduto': 'Subproduto',
+    'vidro temperado': 'Vidro Temperado',
+    'vidros': 'Vidros',
+    'expediçao': 'Expediçao',
+    'expedição': 'Expediçao',
+}
+
+
 CACHE_PRODUTOS = []
 ULTIMA_ATUALIZACAO_CACHE = 0
 TEMPO_CACHE_SEGUNDOS = 600  # Atualiza o cache a cada 10 minutos (600s)
@@ -1245,22 +1259,38 @@ def _converter_float_br(valor):
     except ValueError:
         return 0.0
 
+def _abrir_aba_mes_flexivel(gc, nome_planilha, mes, ano):
+    mes_int = int(mes)
+    ano_int = int(ano)
+    candidatos = [
+        f"{mes_int:02d}/{ano_int}",
+        f"SALDO_{mes_int:02d}_{ano_int}",
+    ]
+    planilha = gc.open(nome_planilha)
+    for nome_aba in candidatos:
+        try:
+            return planilha.worksheet(nome_aba)
+        except gspread.exceptions.WorksheetNotFound:
+            continue
+    raise gspread.exceptions.WorksheetNotFound(f"Nenhuma aba encontrada ({candidatos}) em {nome_planilha}")
+
+
+
 
 def _calcular_percentuais_tipo(gc, mes, ano, tipo_alvo, falta_contar_manual=None):
     nome_aba_mes = f"{int(mes):02d}/{ano}"
     tipo_norm = str(tipo_alvo or '').strip().lower()
+    eh_semi = tipo_norm in ('semiacabado', 'semi-acabado', 'semi acabado')
 
     itens = []
     codigos_contados = set()
 
     try:
-        planilha_principal = gc.open(NOME_PLANILHA)
-        aba_principal = planilha_principal.worksheet(nome_aba_mes)
+        aba_principal = _abrir_aba_mes_flexivel(gc, NOME_PLANILHA, mes, ano)
         registros = aba_principal.get_all_records()
 
         for reg in registros:
             reg_tipo_norm = str(reg.get('Tipo', '')).strip().lower()
-            eh_semi = tipo_norm in ('semiacabado', 'semi-acabado', 'semi acabado')
             reg_eh_semi = reg_tipo_norm in ('semiacabado', 'semi-acabado', 'semi acabado')
             if (eh_semi and reg_eh_semi) or (not eh_semi and reg_tipo_norm == tipo_norm):
                 cod = str(reg.get('Código', '')).strip().upper()
@@ -1281,21 +1311,20 @@ def _calcular_percentuais_tipo(gc, mes, ano, tipo_alvo, falta_contar_manual=None
     soma_diferenca = sum(item['dif'] for item in itens)
     indice_divergencia = round((soma_diferenca / volume_contado) * 100, 2) if volume_contado > 0 else 0.0
 
-    if falta_contar_manual is not None and str(falta_contar_manual).strip() != "":
+    # Quantidade manual só é permitida para Semiacabado; os demais tipos calculam automaticamente
+    if eh_semi and falta_contar_manual is not None and str(falta_contar_manual).strip() != "":
         falta_contar = max(0.0, _converter_float_br(falta_contar_manual))
     else:
         codigos_planejados = []
         try:
-            if tipo_norm == 'acessório primário':
-                planilha_ref = gc.open(NOME_PLANILHA_ACESSORIOS)
-                aba_ref = planilha_ref.worksheet(nome_aba_mes)
+            if tipo_norm in PLANILHAS_TIPOS:
+                aba_ref = _abrir_aba_mes_flexivel(gc, PLANILHAS_TIPOS[tipo_norm], mes, ano)
                 for reg in aba_ref.get_all_records():
                     cod = str(reg.get('Código', '')).strip().upper()
                     if cod and cod not in codigos_planejados:
                         codigos_planejados.append(cod)
-            elif tipo_norm in ('semiacabado', 'semi-acabado', 'semi acabado'):
-                planilha_ref = gc.open(NOME_PLANILHA_SALDOS)
-                aba_ref = planilha_ref.worksheet(nome_aba_mes)
+            elif eh_semi:
+                aba_ref = _abrir_aba_mes_flexivel(gc, NOME_PLANILHA_SALDOS, mes, ano)
                 for reg in aba_ref.get_all_records():
                     cod = str(reg.get('Código', '')).strip().upper()
                     if cod and cod not in codigos_planejados:
@@ -1312,7 +1341,6 @@ def _calcular_percentuais_tipo(gc, mes, ano, tipo_alvo, falta_contar_manual=None
         'Indice_Divergencia_Liquida': indice_divergencia,
         'Eficiencia_Contagem': eficiencia
     }
-
 
 def _garantir_aba_eficiencia(gc):
     planilha_ef = gc.open('eficiencia')
@@ -1453,13 +1481,13 @@ def sincronizar_eficiencia_todos_tipos():
             "Vidro Temperado",
             "Vidros",
             "Semiacabado",
-            "Subproduto"
+            "Subproduto",
+            "Expediçao",
         ]
 
-        nome_aba_mes = f"{int(mes):02d}/{ano}"
         registros_mes = []
         try:
-            aba_principal = gc.open(NOME_PLANILHA).worksheet(nome_aba_mes)
+            aba_principal = _abrir_aba_mes_flexivel(gc, NOME_PLANILHA, mes, ano)
             registros_mes = aba_principal.get_all_records()
         except Exception:
             registros_mes = []
@@ -1488,18 +1516,17 @@ def sincronizar_eficiencia_todos_tipos():
             })
 
         # Mapeia códigos já contados por tipo
-        codigos_contados_por_tipo = {}
-        for tipo_chave, lista_itens in grupos_por_tipo.items():
-            codigos_contados_por_tipo[tipo_chave] = {
-                it['codigo'] for it in lista_itens if it.get('codigo')
-            }
+        codigos_contados_por_tipo = {
+            t_chave: {it['codigo'] for it in itens_l if it.get('codigo')}
+            for t_chave, itens_l in grupos_por_tipo.items()
+        }
 
-        # Lê códigos planejados por tipo (da planilha de acessórios e/ou saldos) em uma única leitura por aba
+        # Lê códigos planejados por tipo (uma leitura por planilha de referência)
         planejados_por_tipo = {}
 
-        def _carregar_planejados_aba(nome_planilha_ref, tipo_fallback):
+        def _carregar_codigos_planilha(nome_planilha_ref, chave_destino):
             try:
-                aba_ref = gc.open(nome_planilha_ref).worksheet(nome_aba_mes)
+                aba_ref = _abrir_aba_mes_flexivel(gc, nome_planilha_ref, mes, ano)
                 registros_ref = aba_ref.get_all_records()
                 tem_coluna_tipo = False
 
@@ -1516,9 +1543,9 @@ def sincronizar_eficiencia_todos_tipos():
                         if cod not in lista_t:
                             lista_t.append(cod)
 
-                # Se a aba de referência não possuir coluna "Tipo", associa todos os códigos ao tipo_fallback
-                if not tem_coluna_tipo and tipo_fallback:
-                    lista_fb = planejados_por_tipo.setdefault(tipo_fallback, [])
+                # Se a planilha de referência não tiver coluna "Tipo", associa ao tipo de destino
+                if not tem_coluna_tipo and chave_destino:
+                    lista_fb = planejados_por_tipo.setdefault(chave_destino, [])
                     for reg in registros_ref:
                         cod = str(reg.get('Código', '')).strip().upper()
                         if cod and cod not in lista_fb:
@@ -1526,8 +1553,16 @@ def sincronizar_eficiencia_todos_tipos():
             except Exception:
                 pass
 
-        _carregar_planejados_aba(NOME_PLANILHA_ACESSORIOS, 'acessório primário')
-        _carregar_planejados_aba(NOME_PLANILHA_SALDOS, 'semiacabado')
+        _carregar_codigos_planilha(NOME_PLANILHA_SALDOS, 'semiacabado')
+
+        planilhas_unicas = {}
+        for chave_t, nome_p in PLANILHAS_TIPOS.items():
+            if chave_t == 'expedição':
+                continue
+            planilhas_unicas[chave_t] = nome_p
+
+        for chave_t, nome_p in planilhas_unicas.items():
+            _carregar_codigos_planilha(nome_p, chave_t)
 
         itens_calculados = []
         for tipo_item in sorted(tipos_encontrados):
