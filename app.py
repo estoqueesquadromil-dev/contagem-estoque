@@ -551,7 +551,7 @@ def obter_saldo_item():
     except Exception as e:
         print(f"Erro ao obter saldo do item: {e}")
         return jsonify({'sucesso': False, 'saldo': 0})
-```[cite: 3]
+
 
 
 
