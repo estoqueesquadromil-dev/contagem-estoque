@@ -1314,7 +1314,7 @@ def _calcular_percentuais_tipo(gc, mes, ano, tipo_alvo, falta_contar_manual=None
     }
 
 
-def _gravar_linha_eficiencia(gc, ano_int, mes_int, tipo_limpo, acuracia_val, div_val, efic_val):
+def _garantir_aba_eficiencia(gc):
     planilha_ef = gc.open('eficiencia')
     try:
         aba_ef = planilha_ef.worksheet('eficiencia')
@@ -1334,6 +1334,11 @@ def _gravar_linha_eficiencia(gc, ano_int, mes_int, tipo_limpo, acuracia_val, div
     if not linhas:
         aba_ef.append_row(cabecalho, value_input_option='USER_ENTERED')
         linhas = [cabecalho]
+    return aba_ef, linhas
+
+
+def _gravar_linha_eficiencia(gc, ano_int, mes_int, tipo_limpo, acuracia_val, div_val, efic_val):
+    aba_ef, linhas = _garantir_aba_eficiencia(gc)
 
     nova_linha = [
         int(ano_int),
@@ -1365,6 +1370,159 @@ def _gravar_linha_eficiencia(gc, ano_int, mes_int, tipo_limpo, acuracia_val, div
     else:
         aba_ef.append_row(nova_linha, value_input_option='USER_ENTERED')
         return 'adicionada', nova_linha
+
+
+def _gravar_lote_eficiencia(gc, ano_int, mes_int, itens_percentuais):
+    """Grava/atualiza vários tipos em uma única operação de lote no Google Sheets."""
+    aba_ef, linhas = _garantir_aba_eficiencia(gc)
+
+    mapa_linhas = {}
+    for idx in range(1, len(linhas)):
+        r = linhas[idx]
+        if len(r) >= 3:
+            r_ano = str(r[0]).strip()
+            r_mes = str(r[1]).strip().lstrip('0') or '0'
+            r_tipo = str(r[2]).strip().lower()
+            if r_ano == str(int(ano_int)) and r_mes == str(int(mes_int)):
+                mapa_linhas[r_tipo] = idx + 1
+
+    batch_updates = []
+    novas_linhas = []
+    salvos = []
+
+    for item in itens_percentuais:
+        tipo_limpo = str(item['Tipo']).strip()
+        nova_linha = [
+            int(ano_int),
+            int(mes_int),
+            tipo_limpo,
+            round(float(item['Acuracia_SKU']), 2),
+            round(float(item['Indice_Divergencia_Liquida']), 2),
+            round(float(item['Eficiencia_Contagem']), 2)
+        ]
+
+        chave_tipo = tipo_limpo.lower()
+        if chave_tipo in mapa_linhas:
+            num_linha = mapa_linhas[chave_tipo]
+            batch_updates.append({
+                'range': f'A{num_linha}:F{num_linha}',
+                'values': [nova_linha]
+            })
+            acao = 'atualizada'
+        else:
+            novas_linhas.append(nova_linha)
+            acao = 'adicionada'
+
+        salvos.append({
+            'Tipo': tipo_limpo,
+            'acao': acao,
+            'Acuracia_SKU': nova_linha[3],
+            'Indice_Divergencia_Liquida': nova_linha[4],
+            'Eficiencia_Contagem': nova_linha[5]
+        })
+
+    if batch_updates:
+        aba_ef.batch_update(batch_updates, value_input_option='USER_ENTERED')
+    if novas_linhas:
+        aba_ef.append_rows(novas_linhas, value_input_option='USER_ENTERED')
+
+    return salvos
+
+
+@app.route('/sincronizar_eficiencia_todos_tipos', methods=['POST'])
+def sincronizar_eficiencia_todos_tipos():
+    try:
+        dados = request.get_json() or {}
+        mes = str(dados.get('mes', '')).strip()
+        ano = str(dados.get('ano', '')).strip()
+        falta_semi_manual = dados.get('falta_contar_semi', None)
+
+        if not mes or not ano:
+            return jsonify({'sucesso': False, 'mensagem': 'Informe Mês e Ano.'}), 400
+
+        gc = conectar_google_sheets()
+        if not gc:
+            return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'}), 500
+
+        tipos_padrao = [
+            "Produto Acabado",
+            "Acessório Primário",
+            "Acessório Almoxarifado",
+            "Folha de Porta Madeira",
+            "Perfil",
+            "Vidro Temperado",
+            "Vidros",
+            "Semiacabado",
+            "Subproduto"
+        ]
+
+        nome_aba_mes = f"{int(mes):02d}/{ano}"
+        registros_mes = []
+        try:
+            aba_principal = gc.open(NOME_PLANILHA).worksheet(nome_aba_mes)
+            registros_mes = aba_principal.get_all_records()
+        except Exception:
+            registros_mes = []
+
+        # Agrupa os registros do mês em memória para evitar abrir a planilha várias vezes
+        grupos_por_tipo = {}
+        tipos_encontrados = set(tipos_padrao)
+
+        for reg in registros_mes:
+            t_raw = str(reg.get('Tipo', '')).strip()
+            if not t_raw:
+                continue
+            eh_semi = t_raw.lower() in ('semiacabado', 'semi-acabado', 'semi acabado')
+            tipo_chave = 'Semiacabado' if eh_semi else t_raw
+            tipos_encontrados.add(tipo_chave)
+
+            cod = str(reg.get('Código', '')).strip().upper()
+            saldo = _converter_float_br(reg.get('Saldo Estoque', reg.get('Saldo', 0)))
+            qtd = _converter_float_br(reg.get('Quantidade Contada', reg.get('Quantidade', 0)))
+            dif = qtd - saldo
+
+            grupos_por_tipo.setdefault(tipo_chave.lower(), []).append({
+                'codigo': cod,
+                'qtd': qtd,
+                'dif': dif
+            })
+
+        itens_calculados = []
+        for tipo_item in sorted(tipos_encontrados):
+            itens_tipo = grupos_por_tipo.get(tipo_item.lower(), [])
+            qtd_contados_sku = len(itens_tipo)
+            qtd_corretos_sku = sum(1 for it in itens_tipo if it['dif'] == 0)
+            acuracia_sku = round((qtd_corretos_sku / qtd_contados_sku) * 100, 2) if qtd_contados_sku > 0 else 0.0
+
+            volume_contado = sum(it['qtd'] for it in itens_tipo)
+            soma_diferenca = sum(it['dif'] for it in itens_tipo)
+            indice_divergencia = round((soma_diferenca / volume_contado) * 100, 2) if volume_contado > 0 else 0.0
+
+            if tipo_item.lower() == 'semiacabado' and falta_semi_manual is not None and str(falta_semi_manual).strip() != "":
+                falta_contar = max(0.0, _converter_float_br(falta_semi_manual))
+                total_universo = qtd_contados_sku + falta_contar
+                eficiencia = round((qtd_contados_sku / total_universo) * 100, 2) if total_universo > 0 else 0.0
+            else:
+                # Mantém 100% quando não há pendência manual informada no lote rápido
+                eficiencia = 100.0 if qtd_contados_sku > 0 else 0.0
+
+            itens_calculados.append({
+                'Tipo': tipo_item,
+                'Acuracia_SKU': acuracia_sku,
+                'Indice_Divergencia_Liquida': indice_divergencia,
+                'Eficiencia_Contagem': eficiencia
+            })
+
+        salvos = _gravar_lote_eficiencia(gc, int(ano), int(mes), itens_calculados)
+
+        return jsonify({
+            'sucesso': True,
+            'mensagem': f'{len(salvos)} tipo(s) enviados em lote para a planilha "eficiencia" ({int(mes):02d}/{int(ano)}).',
+            'registros': salvos
+        })
+    except Exception as e:
+        print(f"Erro em sincronizar_eficiencia_todos_tipos: {e}")
+        return jsonify({'sucesso': False, 'mensagem': f'Erro ao sincronizar tipos: {str(e)}'}), 500
 
 
 @app.route('/salvar_eficiencia', methods=['POST'])
@@ -1411,76 +1569,7 @@ def salvar_eficiencia():
         return jsonify({'sucesso': False, 'mensagem': f'Erro ao enviar para a planilha eficiencia: {str(e)}'}), 500
 
 
-@app.route('/sincronizar_eficiencia_todos_tipos', methods=['POST'])
-def sincronizar_eficiencia_todos_tipos():
-    try:
-        dados = request.get_json() or {}
-        mes = str(dados.get('mes', '')).strip()
-        ano = str(dados.get('ano', '')).strip()
-        falta_semi_manual = dados.get('falta_contar_semi', None)
 
-        if not mes or not ano:
-            return jsonify({'sucesso': False, 'mensagem': 'Informe Mês e Ano.'}), 400
-
-        gc = conectar_google_sheets()
-        if not gc:
-            return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'}), 500
-
-        tipos_padrao = [
-            "Produto Acabado",
-            "Acessório Primário",
-            "Acessório Almoxarifado",
-            "Folha de Porta Madeira",
-            "Perfil",
-            "Vidro Temperado",
-            "Vidros",
-            "Semiacabado",
-            "Subproduto"
-        ]
-
-        nome_aba_mes = f"{int(mes):02d}/{ano}"
-        tipos_encontrados = set(tipos_padrao)
-        try:
-            aba_principal = gc.open(NOME_PLANILHA).worksheet(nome_aba_mes)
-            for reg in aba_principal.get_all_records():
-                t_raw = str(reg.get('Tipo', '')).strip()
-                if t_raw:
-                    if t_raw.lower() in ('semiacabado', 'semi-acabado', 'semi acabado'):
-                        tipos_encontrados.add('Semiacabado')
-                    else:
-                        tipos_encontrados.add(t_raw)
-        except Exception:
-            pass
-
-        salvos = []
-        for tipo_item in sorted(tipos_encontrados):
-            falta_arg = falta_semi_manual if tipo_item.lower() == 'semiacabado' else None
-            perc = _calcular_percentuais_tipo(gc, mes, ano, tipo_item, falta_arg)
-            acao, linha_gravada = _gravar_linha_eficiencia(
-                gc,
-                int(ano),
-                int(mes),
-                tipo_item,
-                perc['Acuracia_SKU'],
-                perc['Indice_Divergencia_Liquida'],
-                perc['Eficiencia_Contagem']
-            )
-            salvos.append({
-                'Tipo': linha_gravada[2],
-                'acao': acao,
-                'Acuracia_SKU': linha_gravada[3],
-                'Indice_Divergencia_Liquida': linha_gravada[4],
-                'Eficiencia_Contagem': linha_gravada[5]
-            })
-
-        return jsonify({
-            'sucesso': True,
-            'mensagem': f'{len(salvos)} tipo(s) enviados para a planilha "eficiencia" ({int(mes):02d}/{int(ano)}).',
-            'registros': salvos
-        })
-    except Exception as e:
-        print(f"Erro em sincronizar_eficiencia_todos_tipos: {e}")
-        return jsonify({'sucesso': False, 'mensagem': f'Erro ao sincronizar tipos: {str(e)}'}), 500
 
 
 
