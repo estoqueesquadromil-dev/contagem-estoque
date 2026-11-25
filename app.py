@@ -1223,5 +1223,264 @@ def metricas_semi_acabado():
 
 
 
+
+
+
+def _converter_float_br(valor):
+    if valor is None or valor == "":
+        return 0.0
+    if isinstance(valor, (int, float)):
+        return float(valor)
+    texto = str(valor).strip().replace('%', '')
+    if '.' in texto and ',' in texto:
+        texto = texto.replace('.', '').replace(',', '.')
+    elif '.' in texto:
+        partes = texto.split('.')
+        if len(partes[-1]) == 3 and all(p.lstrip('-').isdigit() for p in partes):
+            texto = texto.replace('.', '')
+    elif ',' in texto:
+        texto = texto.replace(',', '.')
+    try:
+        return float(texto)
+    except ValueError:
+        return 0.0
+
+
+def _calcular_percentuais_tipo(gc, mes, ano, tipo_alvo, falta_contar_manual=None):
+    nome_aba_mes = f"{int(mes):02d}/{ano}"
+    tipo_norm = str(tipo_alvo or '').strip().lower()
+
+    itens = []
+    codigos_contados = set()
+
+    try:
+        planilha_principal = gc.open(NOME_PLANILHA)
+        aba_principal = planilha_principal.worksheet(nome_aba_mes)
+        registros = aba_principal.get_all_records()
+
+        for reg in registros:
+            reg_tipo_norm = str(reg.get('Tipo', '')).strip().lower()
+            eh_semi = tipo_norm in ('semiacabado', 'semi-acabado', 'semi acabado')
+            reg_eh_semi = reg_tipo_norm in ('semiacabado', 'semi-acabado', 'semi acabado')
+            if (eh_semi and reg_eh_semi) or (not eh_semi and reg_tipo_norm == tipo_norm):
+                cod = str(reg.get('Código', '')).strip().upper()
+                saldo = _converter_float_br(reg.get('Saldo Estoque', reg.get('Saldo', 0)))
+                qtd = _converter_float_br(reg.get('Quantidade Contada', reg.get('Quantidade', 0)))
+                dif = qtd - saldo
+                itens.append({'codigo': cod, 'qtd': qtd, 'dif': dif})
+                if cod:
+                    codigos_contados.add(cod)
+    except Exception as e:
+        print(f"[AVISO] Falha ao ler {nome_aba_mes} em {NOME_PLANILHA} ({tipo_alvo}): {e}")
+
+    qtd_contados_sku = len(itens)
+    qtd_corretos_sku = sum(1 for item in itens if item['dif'] == 0)
+    acuracia_sku = round((qtd_corretos_sku / qtd_contados_sku) * 100, 2) if qtd_contados_sku > 0 else 0.0
+
+    volume_contado = sum(item['qtd'] for item in itens)
+    soma_diferenca = sum(item['dif'] for item in itens)
+    indice_divergencia = round((soma_diferenca / volume_contado) * 100, 2) if volume_contado > 0 else 0.0
+
+    if falta_contar_manual is not None and str(falta_contar_manual).strip() != "":
+        falta_contar = max(0.0, _converter_float_br(falta_contar_manual))
+    else:
+        codigos_planejados = []
+        try:
+            if tipo_norm == 'acessório primário':
+                planilha_ref = gc.open(NOME_PLANILHA_ACESSORIOS)
+                aba_ref = planilha_ref.worksheet(nome_aba_mes)
+                for reg in aba_ref.get_all_records():
+                    cod = str(reg.get('Código', '')).strip().upper()
+                    if cod and cod not in codigos_planejados:
+                        codigos_planejados.append(cod)
+            elif tipo_norm in ('semiacabado', 'semi-acabado', 'semi acabado'):
+                planilha_ref = gc.open(NOME_PLANILHA_SALDOS)
+                aba_ref = planilha_ref.worksheet(nome_aba_mes)
+                for reg in aba_ref.get_all_records():
+                    cod = str(reg.get('Código', '')).strip().upper()
+                    if cod and cod not in codigos_planejados:
+                        codigos_planejados.append(cod)
+        except Exception:
+            pass
+        falta_contar = float(sum(1 for cod in codigos_planejados if cod not in codigos_contados))
+
+    total_universo = qtd_contados_sku + falta_contar
+    eficiencia = round((qtd_contados_sku / total_universo) * 100, 2) if total_universo > 0 else 0.0
+
+    return {
+        'Acuracia_SKU': acuracia_sku,
+        'Indice_Divergencia_Liquida': indice_divergencia,
+        'Eficiencia_Contagem': eficiencia
+    }
+
+
+def _gravar_linha_eficiencia(gc, ano_int, mes_int, tipo_limpo, acuracia_val, div_val, efic_val):
+    planilha_ef = gc.open('eficiencia')
+    try:
+        aba_ef = planilha_ef.worksheet('eficiencia')
+    except gspread.exceptions.WorksheetNotFound:
+        aba_ef = planilha_ef.sheet1
+
+    cabecalho = [
+        "Ano",
+        "Mes",
+        "Tipo",
+        "Acuracia_SKU",
+        "Indice_Divergencia_Liquida",
+        "Eficiencia_Contagem"
+    ]
+
+    linhas = aba_ef.get_all_values()
+    if not linhas:
+        aba_ef.append_row(cabecalho)
+        linhas = [cabecalho]
+
+    nova_linha = [
+        int(ano_int),
+        int(mes_int),
+        str(tipo_limpo).strip(),
+        round(float(acuracia_val), 2),
+        round(float(div_val), 2),
+        round(float(efic_val), 2)
+    ]
+
+    linha_existente = None
+    for idx in range(1, len(linhas)):
+        r = linhas[idx]
+        if len(r) >= 3:
+            r_ano = str(r[0]).strip()
+            r_mes = str(r[1]).strip().lstrip('0') or '0'
+            r_tipo = str(r[2]).strip().lower()
+            if r_ano == str(int(ano_int)) and r_mes == str(int(mes_int)) and r_tipo == str(tipo_limpo).strip().lower():
+                linha_existente = idx + 1
+                break
+
+    if linha_existente is not None:
+        aba_ef.update(f'A{linha_existente}:F{linha_existente}', [nova_linha])
+        return 'atualizada', nova_linha
+    else:
+        aba_ef.append_row(nova_linha)
+        return 'adicionada', nova_linha
+
+
+@app.route('/salvar_eficiencia', methods=['POST'])
+def salvar_eficiencia():
+    try:
+        dados = request.get_json() or {}
+        mes = str(dados.get('mes', '')).strip()
+        ano = str(dados.get('ano', '')).strip()
+        tipo = str(dados.get('tipo', '')).strip()
+        falta_manual = dados.get('falta_contar', None)
+
+        if not mes or not ano or not tipo:
+            return jsonify({'sucesso': False, 'mensagem': 'Informe Ano, Mês e Tipo.'}), 400
+
+        gc = conectar_google_sheets()
+        if not gc:
+            return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'}), 500
+
+        perc = _calcular_percentuais_tipo(gc, mes, ano, tipo, falta_manual)
+
+        acuracia_val = _converter_float_br(dados.get('acuracia_sku', perc['Acuracia_SKU']))
+        div_val = _converter_float_br(dados.get('indice_divergencia_liquida', perc['Indice_Divergencia_Liquida']))
+        efic_val = _converter_float_br(dados.get('eficiencia_contagem', perc['Eficiencia_Contagem']))
+
+        acao, linha_gravada = _gravar_linha_eficiencia(
+            gc, int(ano), int(mes), tipo, acuracia_val, div_val, efic_val
+        )
+
+        return jsonify({
+            'sucesso': True,
+            'mensagem': f'Percentuais ({tipo} {int(mes):02d}/{int(ano)}) {acao} na planilha "eficiencia"!',
+            'acao': acao,
+            'dados': {
+                'Ano': linha_gravada[0],
+                'Mes': linha_gravada[1],
+                'Tipo': linha_gravada[2],
+                'Acuracia_SKU': linha_gravada[3],
+                'Indice_Divergencia_Liquida': linha_gravada[4],
+                'Eficiencia_Contagem': linha_gravada[5]
+            }
+        })
+    except Exception as e:
+        print(f"Erro em salvar_eficiencia: {e}")
+        return jsonify({'sucesso': False, 'mensagem': f'Erro ao enviar para a planilha eficiencia: {str(e)}'}), 500
+
+
+@app.route('/sincronizar_eficiencia_todos_tipos', methods=['POST'])
+def sincronizar_eficiencia_todos_tipos():
+    try:
+        dados = request.get_json() or {}
+        mes = str(dados.get('mes', '')).strip()
+        ano = str(dados.get('ano', '')).strip()
+        falta_semi_manual = dados.get('falta_contar_semi', None)
+
+        if not mes or not ano:
+            return jsonify({'sucesso': False, 'mensagem': 'Informe Mês e Ano.'}), 400
+
+        gc = conectar_google_sheets()
+        if not gc:
+            return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'}), 500
+
+        tipos_padrao = [
+            "Produto Acabado",
+            "Acessório Primário",
+            "Acessório Almoxarifado",
+            "Folha de Porta Madeira",
+            "Perfil",
+            "Vidro Temperado",
+            "Vidros",
+            "Semiacabado",
+            "Subproduto"
+        ]
+
+        nome_aba_mes = f"{int(mes):02d}/{ano}"
+        tipos_encontrados = set(tipos_padrao)
+        try:
+            aba_principal = gc.open(NOME_PLANILHA).worksheet(nome_aba_mes)
+            for reg in aba_principal.get_all_records():
+                t_raw = str(reg.get('Tipo', '')).strip()
+                if t_raw:
+                    if t_raw.lower() in ('semiacabado', 'semi-acabado', 'semi acabado'):
+                        tipos_encontrados.add('Semiacabado')
+                    else:
+                        tipos_encontrados.add(t_raw)
+        except Exception:
+            pass
+
+        salvos = []
+        for tipo_item in sorted(tipos_encontrados):
+            falta_arg = falta_semi_manual if tipo_item.lower() == 'semiacabado' else None
+            perc = _calcular_percentuais_tipo(gc, mes, ano, tipo_item, falta_arg)
+            acao, linha_gravada = _gravar_linha_eficiencia(
+                gc,
+                int(ano),
+                int(mes),
+                tipo_item,
+                perc['Acuracia_SKU'],
+                perc['Indice_Divergencia_Liquida'],
+                perc['Eficiencia_Contagem']
+            )
+            salvos.append({
+                'Tipo': linha_gravada[2],
+                'acao': acao,
+                'Acuracia_SKU': linha_gravada[3],
+                'Indice_Divergencia_Liquida': linha_gravada[4],
+                'Eficiencia_Contagem': linha_gravada[5]
+            })
+
+        return jsonify({
+            'sucesso': True,
+            'mensagem': f'{len(salvos)} tipo(s) enviados para a planilha "eficiencia" ({int(mes):02d}/{int(ano)}).',
+            'registros': salvos
+        })
+    except Exception as e:
+        print(f"Erro em sincronizar_eficiencia_todos_tipos: {e}")
+        return jsonify({'sucesso': False, 'mensagem': f'Erro ao sincronizar tipos: {str(e)}'}), 500
+
+
+
+
+
 if __name__ == '__main__':
     app.run(debug=True)
