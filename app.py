@@ -1816,6 +1816,124 @@ def metricas_tipo():
 
 
 
+@app.route('/salvar_saldo_tipo', methods=['POST'])
+def salvar_saldo_tipo():
+    try:
+        dados = request.get_json() or {}
+        tipo_raw = str(dados.get('tipo', '')).strip()
+        data_mes_ano = str(dados.get('data', '')).strip()
+        texto_colado = str(dados.get('texto', '')).strip()
+
+        tipo_norm = tipo_raw.lower()
+        if not tipo_raw or tipo_norm not in PLANILHAS_TIPOS or not data_mes_ano or not texto_colado:
+            return jsonify({'sucesso': False, 'mensagem': 'Tipo, data ou texto inválidos!'})
+
+        nome_planilha_alvo = PLANILHAS_TIPOS[tipo_norm]
+        nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
+        agora = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+
+        gc = conectar_google_sheets()
+        planilha = gc.open(nome_planilha_alvo)
+
+        try:
+            aba = planilha.worksheet(nome_aba)
+            registros_existentes = aba.get_all_records()
+            mapa_ids = {
+                str(r.get('CODIGO', '')).strip().upper(): str(r.get('ID', '')).strip()
+                for r in registros_existentes if r.get('CODIGO')
+            }
+            aba.clear()
+        except gspread.exceptions.WorksheetNotFound:
+            aba = planilha.add_worksheet(title=nome_aba, rows="1000", cols="4")
+            mapa_ids = {}
+
+        linhas_processadas = []
+        for linha in texto_colado.split('\n'):
+            linha_limpa = linha.strip()
+            if not linha_limpa:
+                continue
+            partes = re.split(r'[\t\s]+', linha_limpa)
+            codigo = partes[0].strip().upper()
+            saldo = partes[1].strip() if len(partes) >= 2 else '0'
+            row_id = mapa_ids.get(codigo) or str(uuid.uuid4())[:8]
+            linhas_processadas.append([row_id, codigo, saldo, agora])
+
+        if not linhas_processadas:
+            return jsonify({'sucesso': False, 'mensagem': 'Nenhum dado válido encontrado!'})
+
+        aba.update('A1', [["ID", "CODIGO", "SALDO", "ULTIMA ATUALIZACAO"]] + linhas_processadas)
+        return jsonify({
+            'sucesso': True,
+            'mensagem': f"Saldo de {len(linhas_processadas)} item(ns) gravado em {nome_planilha_alvo} ({nome_aba})!"
+        })
+    except Exception as e:
+        print(f"Erro em salvar_saldo_tipo: {e}")
+        return jsonify({'sucesso': False, 'mensagem': f'Erro interno: {str(e)}'}), 500
+
+
+@app.route('/salvar_codigos_contar_tipo', methods=['POST'])
+def salvar_codigos_contar_tipo():
+    try:
+        dados = request.get_json() or {}
+        tipo_raw = str(dados.get('tipo', '')).strip()
+        data_mes_ano = str(dados.get('data', '')).strip()
+        codigos = dados.get('codigos', [])
+
+        tipo_norm = tipo_raw.lower()
+        if not tipo_raw or tipo_norm not in PLANILHAS_TIPOS or not data_mes_ano or not codigos:
+            return jsonify({'sucesso': False, 'mensagem': 'Informe tipo, mês/ano e códigos!'})
+
+        nome_planilha_alvo = PLANILHAS_TIPOS[tipo_norm]
+        gc = conectar_google_sheets()
+        if not gc:
+            return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'}), 500
+
+        planilha = gc.open(nome_planilha_alvo)
+        try:
+            aba = planilha.worksheet(data_mes_ano)
+        except gspread.exceptions.WorksheetNotFound:
+            aba = planilha.add_worksheet(title=data_mes_ano, rows="1000", cols="8")
+            aba.append_row(["ID", "Data", "Código", "Saldo Estoque", "Quantidade Contada", "Diferença", "Tipo", "Inventario Feito"])
+
+        codigos_existentes = {
+            str(reg.get('Código', '')).strip().upper()
+            for reg in aba.get_all_records() if reg.get('Código')
+        }
+
+        linhas_adicionar = []
+        for cod in codigos:
+            cod_limpo = str(cod).strip().upper()
+            if not cod_limpo or cod_limpo in codigos_existentes:
+                continue
+            linhas_adicionar.append([
+                str(uuid.uuid4())[:8],
+                data_mes_ano,
+                cod_limpo,
+                0,
+                0,
+                0,
+                tipo_raw,
+                'Não'
+            ])
+            codigos_existentes.add(cod_limpo)
+
+        if linhas_adicionar:
+            aba.append_rows(linhas_adicionar)
+            return jsonify({
+                'sucesso': True,
+                'mensagem': f'{len(linhas_adicionar)} código(s) salvo(s) em {nome_planilha_alvo} ({data_mes_ano})!'
+            })
+
+        return jsonify({'sucesso': True, 'mensagem': 'Nenhum código novo para adicionar.'})
+    except Exception as e:
+        print(f"Erro em salvar_codigos_contar_tipo: {e}")
+        return jsonify({'sucesso': False, 'mensagem': f'Erro ao salvar: {str(e)}'}), 500
+
+
+
+
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
