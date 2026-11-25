@@ -1204,6 +1204,7 @@ function filtrarTabelaConsulta() {
 
     
 async function carregarSemiAcabadosFaltaContar() {
+    carregarMetricasSemiAcabado();
     let mes = document.getElementById('mes-semi').value;
     let ano = document.getElementById('ano-semi').value;
     let dataFormatada = `${mes.padStart(2, '0')}/${ano}`;
