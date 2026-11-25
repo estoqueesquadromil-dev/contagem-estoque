@@ -1295,7 +1295,6 @@ async function carregarSemiAcabadosFaltaContar() {
         tbodyFalta.innerHTML = '<tr><td colspan="3" style="text-align: center; color: red; padding: 15px;">Erro de comunicação com o servidor.</td></tr>';
     }
 }
-
     
 // --- EXCLUIR SALDO SALVO USANDO O ID EXATO ---
 async function excluirSaldoSalvoPorId(rowId) {
@@ -2161,11 +2160,35 @@ async function carregarMetricasSemiAcabado() {
                 }
             }
             document.getElementById('ind-semi-efi-pct').innerText = formatarPct(dados.eficiencia.percentual);
+
+            // Reaplica o último Falta Contar e Eficiência enviados para este mês/ano
+            const salvoLocal = localStorage.getItem(_chaveEficienciaSemiSalva(mes, ano));
+            if (salvoLocal) {
+                try {
+                    const parsed = JSON.parse(salvoLocal);
+                    if (elFaltaSemi && parsed.falta_contar !== undefined) {
+                        if (elFaltaSemi.tagName === 'INPUT') {
+                            elFaltaSemi.value = parsed.falta_contar;
+                        } else {
+                            elFaltaSemi.innerText = parsed.falta_contar;
+                        }
+                    }
+                    if (parsed.eficiencia_pct) {
+                        document.getElementById('ind-semi-efi-pct').innerText = parsed.eficiencia_pct;
+                    }
+                } catch (_) {}
+            }
         }
     } catch (e) {
         console.error('Erro ao carregar métricas de semi-acabado:', e);
     }
 }
+
+
+function _chaveEficienciaSemiSalva(mes, ano) {
+    return `eficiencia_semi_ultimo_${String(mes).padStart(2, '0')}_${ano}`;
+}
+    
 
 let contadosSemiAtual = 0;
 
@@ -2173,7 +2196,7 @@ function recalcularEficienciaSemiManual() {
     const inputFaltam = document.getElementById('ind-semi-efi-faltam');
     if (!inputFaltam) return;
     const faltam = Math.max(0, parseInt(inputFaltam.value, 10) || 0);
-    const contados = Math.max(0, Number(contadosSemiAtual) || 0);
+    const contados = Math.max(0, Number(window.contadosSemiAtual || 0));
     const total = contados + faltam;
     const eficiencia = total > 0 ? (contados / total) * 100 : 0;
     document.getElementById('ind-semi-efi-pct').innerText = `${eficiencia.toFixed(2).replace('.', ',')}%`;
@@ -2205,6 +2228,17 @@ async function enviarParaPlanilhaEficiencia(origem) {
             })
         });
         const dados = await res.json();
+
+        if (dados.sucesso && origem === 'semi' && dados.dados) {
+            const eficSalva = Number(dados.dados.Eficiencia_Contagem);
+            const pctFormatado = `${eficSalva.toFixed(2).replace('.', ',')}%`;
+            localStorage.setItem(_chaveEficienciaSemiSalva(mes, ano), JSON.stringify({
+                falta_contar: faltaManual ?? 0,
+                eficiencia_pct: pctFormatado
+            }));
+            document.getElementById('ind-semi-efi-pct').innerText = pctFormatado;
+        }
+
         alert(dados.mensagem || (dados.sucesso ? 'Enviado com sucesso!' : 'Falha ao enviar.'));
     } catch (e) {
         console.error('Erro ao enviar para planilha eficiencia:', e);
