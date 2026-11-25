@@ -1332,7 +1332,7 @@ def _gravar_linha_eficiencia(gc, ano_int, mes_int, tipo_limpo, acuracia_val, div
 
     linhas = aba_ef.get_all_values()
     if not linhas:
-        aba_ef.append_row(cabecalho)
+        aba_ef.append_row(cabecalho, value_input_option='USER_ENTERED')
         linhas = [cabecalho]
 
     nova_linha = [
@@ -1356,10 +1356,14 @@ def _gravar_linha_eficiencia(gc, ano_int, mes_int, tipo_limpo, acuracia_val, div
                 break
 
     if linha_existente is not None:
-        aba_ef.update(f'A{linha_existente}:F{linha_existente}', [nova_linha])
+        aba_ef.update(
+            range_name=f'A{linha_existente}:F{linha_existente}',
+            values=[nova_linha],
+            value_input_option='USER_ENTERED'
+        )
         return 'atualizada', nova_linha
     else:
-        aba_ef.append_row(nova_linha)
+        aba_ef.append_row(nova_linha, value_input_option='USER_ENTERED')
         return 'adicionada', nova_linha
 
 
