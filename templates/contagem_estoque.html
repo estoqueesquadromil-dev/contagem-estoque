@@ -2626,7 +2626,100 @@ async function enviarEficienciaTipoDinamico() {
   }
 }
 
+async function salvarSaldoEstoqueTipoDinamico() {
+  const tipo = window.tipoSelecionadoAtual;
+  const txtArea = document.getElementById('txtSaldoEstoqueTipo');
+  const textoColado = txtArea.value.trim();
+  const mes = document.getElementById('mes-tipo').value;
+  const ano = document.getElementById('ano-tipo').value;
+  const dataConsulta = `${mes}/${ano}`;
 
+  if (!textoColado) {
+    alert('Cole os dados de Código e Saldo antes de salvar!');
+    return;
+  }
+
+  try {
+    const res = await fetch('/salvar_saldo_tipo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tipo: tipo, data: dataConsulta, texto: textoColado })
+    });
+    const dados = await res.json();
+    alert(dados.mensagem || (dados.sucesso ? 'Saldo salvo!' : 'Erro ao salvar saldo.'));
+    if (dados.sucesso) {
+      txtArea.value = '';
+      carregarDadosTipoDinamico();
+    }
+  } catch (e) {
+    console.error(e);
+    alert('Erro de comunicação ao salvar saldo.');
+  }
+}
+
+async function salvarCodigosTipoDinamico() {
+  const tipo = window.tipoSelecionadoAtual;
+  const txt = document.getElementById('txtCodigosContarTipo').value.trim();
+  const mes = document.getElementById('mes-tipo').value;
+  const ano = document.getElementById('ano-tipo').value;
+  const dataFormatada = `${String(mes).padStart(2, '0')}/${ano}`;
+
+  if (!txt) {
+    alert('Cole os códigos na caixa de texto!');
+    return;
+  }
+
+  const listaCodigos = txt.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+  try {
+    const res = await fetch('/salvar_codigos_contar_tipo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tipo: tipo, data: dataFormatada, codigos: listaCodigos })
+    });
+    const resultado = await res.json();
+    alert(resultado.mensagem || (resultado.sucesso ? 'Códigos salvos!' : 'Erro ao salvar códigos.'));
+    if (resultado.sucesso) {
+      document.getElementById('txtCodigosContarTipo').value = '';
+      carregarDadosTipoDinamico();
+    }
+  } catch (e) {
+    console.error(e);
+    alert('Erro ao salvar códigos.');
+  }
+}
+
+async function excluirItemPendenteTipo(codigo) {
+  if (!confirm(`Deseja realmente remover/excluir o registro do código ${codigo}?`)) return;
+
+  const mes = document.getElementById('mes-tipo').value;
+  const ano = document.getElementById('ano-tipo').value;
+  const dataFormatada = `${String(mes).padStart(2, '0')}/${ano}`;
+
+  try {
+    const res = await fetch(`/consultar_movimentacao?data=${encodeURIComponent(dataFormatada)}`);
+    const dados = await res.json();
+
+    if (dados.sucesso && dados.itens) {
+      const itemEncontrado = dados.itens.find(i => String(i.Código).toUpperCase() === String(codigo).toUpperCase());
+      if (itemEncontrado) {
+        const resExcluir = await fetch('/excluir_movimentacao', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: dataFormatada, id: itemEncontrado.ID })
+        });
+        const rData = await resExcluir.json();
+        alert(rData.mensagem);
+        carregarDadosTipoDinamico();
+        return;
+      }
+    }
+    alert('Registro não encontrado na contagem do mês.');
+  } catch (e) {
+    console.error(e);
+    alert('Erro ao tentar excluir o item.');
+  }
+}
     
     
   </script>
