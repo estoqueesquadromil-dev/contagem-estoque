@@ -368,7 +368,14 @@
           </div>
         </div>
 
-
+        <div class="d-flex flex-wrap justify-content-end gap-2 mb-3">
+          <button type="button" class="btn btn-primary btn-sm fw-bold" onclick="enviarParaPlanilhaEficiencia('semi')">
+            <i class="bi bi-send-check"></i> Enviar Percentuais (Semiacabado)
+          </button>
+          <button type="button" class="btn btn-outline-success btn-sm fw-bold" onclick="sincronizarTodosTiposEficiencia('semi')">
+            <i class="bi bi-arrow-repeat"></i> Enviar Todos os Tipos do Mês
+          </button>
+        </div>
 
         
         <!-- TABELA 1: ITENS SALVOS DO SALDO DE ESTOQUE (COM BOTÃO DE RETRAIR) -->
@@ -562,7 +569,14 @@
           </div>
         </div>
 
-
+        <div class="d-flex flex-wrap justify-content-end gap-2 mb-3">
+          <button type="button" class="btn btn-primary btn-sm fw-bold" onclick="enviarParaPlanilhaEficiencia('acessorios')">
+            <i class="bi bi-send-check"></i> Enviar Percentuais (Acessório Primário)
+          </button>
+          <button type="button" class="btn btn-outline-success btn-sm fw-bold" onclick="sincronizarTodosTiposEficiencia('acessorios')">
+            <i class="bi bi-arrow-repeat"></i> Enviar Todos os Tipos do Mês
+          </button>
+        </div>
 
         
         <!-- TABELA 1: SALDOS SALVOS (COM RETRAIR/EXPANDIR) -->
@@ -2157,6 +2171,87 @@ async function carregarMetricasSemiAcabado() {
     }
 }
     
+
+
+let contadosSemiAtual = 0;
+
+function recalcularEficienciaSemiManual() {
+    const inputFaltam = document.getElementById('ind-semi-efi-faltam');
+    if (!inputFaltam) return;
+    const faltam = Math.max(0, parseInt(inputFaltam.value, 10) || 0);
+    const contados = Math.max(0, Number(contadosSemiAtual) || 0);
+    const total = contados + faltam;
+    const eficiencia = total > 0 ? (contados / total) * 100 : 0;
+    document.getElementById('ind-semi-efi-pct').innerText = `${eficiencia.toFixed(2).replace('.', ',')}%`;
+}
+
+async function enviarParaPlanilhaEficiencia(origem) {
+    let mes, ano, tipo, faltaManual = null;
+    if (origem === 'semi') {
+        mes = document.getElementById('mes-semi').value;
+        ano = document.getElementById('ano-semi').value;
+        tipo = 'Semiacabado';
+        const elFalta = document.getElementById('ind-semi-efi-faltam');
+        if (elFalta) faltaManual = Math.max(0, parseInt(elFalta.value, 10) || 0);
+    } else {
+        mes = document.getElementById('mes-acessorios').value;
+        ano = document.getElementById('ano-acessorios').value;
+        tipo = 'Acessório Primário';
+    }
+
+    try {
+        const res = await fetch('/salvar_eficiencia', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                mes: mes,
+                ano: ano,
+                tipo: tipo,
+                falta_contar: faltaManual
+            })
+        });
+        const dados = await res.json();
+        alert(dados.mensagem || (dados.sucesso ? 'Enviado com sucesso!' : 'Falha ao enviar.'));
+    } catch (e) {
+        console.error('Erro ao enviar para planilha eficiencia:', e);
+        alert('Erro de comunicação ao enviar para a planilha eficiencia.');
+    }
+}
+
+async function sincronizarTodosTiposEficiencia(origem) {
+    let mes, ano, faltaSemiManual = null;
+    if (origem === 'semi') {
+        mes = document.getElementById('mes-semi').value;
+        ano = document.getElementById('ano-semi').value;
+        const elFalta = document.getElementById('ind-semi-efi-faltam');
+        if (elFalta) faltaSemiManual = Math.max(0, parseInt(elFalta.value, 10) || 0);
+    } else {
+        mes = document.getElementById('mes-acessorios').value;
+        ano = document.getElementById('ano-acessorios').value;
+    }
+
+    try {
+        const res = await fetch('/sincronizar_eficiencia_todos_tipos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                mes: mes,
+                ano: ano,
+                falta_contar_semi: faltaSemiManual
+            })
+        });
+        const dados = await res.json();
+        alert(dados.mensagem || (dados.sucesso ? 'Tipos enviados com sucesso!' : 'Falha ao enviar tipos.'));
+    } catch (e) {
+        console.error('Erro ao sincronizar todos os tipos:', e);
+        alert('Erro de comunicação ao enviar todos os tipos.');
+    }
+}
+
+
+
+
+
     
   </script>
 </body>
