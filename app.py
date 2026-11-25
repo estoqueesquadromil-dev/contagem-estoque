@@ -1487,9 +1487,55 @@ def sincronizar_eficiencia_todos_tipos():
                 'dif': dif
             })
 
+        # Mapeia códigos já contados por tipo
+        codigos_contados_por_tipo = {}
+        for tipo_chave, lista_itens in grupos_por_tipo.items():
+            codigos_contados_por_tipo[tipo_chave] = {
+                it['codigo'] for it in lista_itens if it.get('codigo')
+            }
+
+        # Lê códigos planejados por tipo (da planilha de acessórios e/ou saldos) em uma única leitura por aba
+        planejados_por_tipo = {}
+
+        def _carregar_planejados_aba(nome_planilha_ref, tipo_fallback):
+            try:
+                aba_ref = gc.open(nome_planilha_ref).worksheet(nome_aba_mes)
+                registros_ref = aba_ref.get_all_records()
+                tem_coluna_tipo = False
+
+                for reg in registros_ref:
+                    cod = str(reg.get('Código', '')).strip().upper()
+                    if not cod:
+                        continue
+                    t_reg = str(reg.get('Tipo', '')).strip()
+                    if t_reg:
+                        tem_coluna_tipo = True
+                        eh_semi_reg = t_reg.lower() in ('semiacabado', 'semi-acabado', 'semi acabado')
+                        chave_t = 'semiacabado' if eh_semi_reg else t_reg.lower()
+                        lista_t = planejados_por_tipo.setdefault(chave_t, [])
+                        if cod not in lista_t:
+                            lista_t.append(cod)
+
+                # Se a aba de referência não possuir coluna "Tipo", associa todos os códigos ao tipo_fallback
+                if not tem_coluna_tipo and tipo_fallback:
+                    lista_fb = planejados_por_tipo.setdefault(tipo_fallback, [])
+                    for reg in registros_ref:
+                        cod = str(reg.get('Código', '')).strip().upper()
+                        if cod and cod not in lista_fb:
+                            lista_fb.append(cod)
+            except Exception:
+                pass
+
+        _carregar_planejados_aba(NOME_PLANILHA_ACESSORIOS, 'acessório primário')
+        _carregar_planejados_aba(NOME_PLANILHA_SALDOS, 'semiacabado')
+
         itens_calculados = []
         for tipo_item in sorted(tipos_encontrados):
-            itens_tipo = grupos_por_tipo.get(tipo_item.lower(), [])
+            tipo_lower = tipo_item.lower()
+            eh_semi = tipo_lower in ('semiacabado', 'semi-acabado', 'semi acabado')
+            chave_tipo = 'semiacabado' if eh_semi else tipo_lower
+
+            itens_tipo = grupos_por_tipo.get(chave_tipo, [])
             qtd_contados_sku = len(itens_tipo)
             qtd_corretos_sku = sum(1 for it in itens_tipo if it['dif'] == 0)
             acuracia_sku = round((qtd_corretos_sku / qtd_contados_sku) * 100, 2) if qtd_contados_sku > 0 else 0.0
@@ -1498,13 +1544,16 @@ def sincronizar_eficiencia_todos_tipos():
             soma_diferenca = sum(it['dif'] for it in itens_tipo)
             indice_divergencia = round((soma_diferenca / volume_contado) * 100, 2) if volume_contado > 0 else 0.0
 
-            if tipo_item.lower() == 'semiacabado' and falta_semi_manual is not None and str(falta_semi_manual).strip() != "":
+            contados_set = codigos_contados_por_tipo.get(chave_tipo, set())
+
+            if eh_semi and falta_semi_manual is not None and str(falta_semi_manual).strip() != "":
                 falta_contar = max(0.0, _converter_float_br(falta_semi_manual))
-                total_universo = qtd_contados_sku + falta_contar
-                eficiencia = round((qtd_contados_sku / total_universo) * 100, 2) if total_universo > 0 else 0.0
             else:
-                # Mantém 100% quando não há pendência manual informada no lote rápido
-                eficiencia = 100.0 if qtd_contados_sku > 0 else 0.0
+                planejados_tipo = planejados_por_tipo.get(chave_tipo, [])
+                falta_contar = float(sum(1 for cod in planejados_tipo if cod not in contados_set))
+
+            total_universo = qtd_contados_sku + falta_contar
+            eficiencia = round((qtd_contados_sku / total_universo) * 100, 2) if total_universo > 0 else 0.0
 
             itens_calculados.append({
                 'Tipo': tipo_item,
