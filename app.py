@@ -30,8 +30,6 @@ PLANILHAS_TIPOS = {
     'subproduto': 'Subproduto',
     'vidro temperado': 'Vidro Temperado',
     'vidros': 'Vidros',
-    'expediçao': 'Expediçao',
-    'expedição': 'Expediçao',
 }
 
 
@@ -1489,7 +1487,6 @@ def sincronizar_eficiencia_todos_tipos():
             "Vidros",
             "Semiacabado",
             "Subproduto",
-            "Expediçao",
         ]
 
         registros_mes = []
@@ -1676,7 +1673,6 @@ def produtos_tipo_faltam():
             return jsonify({'sucesso': False, 'mensagem': f'Tipo "{tipo_raw}" não mapeado em PLANILHAS_TIPOS.'}), 400
 
         nome_planilha_tipo = PLANILHAS_TIPOS[tipo_norm]
-        nome_aba_mes = f"{int(mes):02d}/{ano}"
         nome_aba_saldo = f"SALDO_{int(mes):02d}_{ano}"
 
         gc = conectar_google_sheets()
@@ -1716,7 +1712,7 @@ def produtos_tipo_faltam():
             aba_principal = _abrir_aba_mes_flexivel(gc, NOME_PLANILHA, mes, ano)
             for reg in aba_principal.get_all_records():
                 reg_tipo = str(reg.get('Tipo', '')).strip().lower()
-                if reg_tipo == tipo_norm or (tipo_norm in ('expediçao', 'expedição') and reg_tipo in ('expediçao', 'expedição')):
+                if reg_tipo == tipo_norm:
                     cod = str(reg.get('Código', '')).strip().upper()
                     if cod:
                         codigos_ja_contados.add(cod)
@@ -1758,7 +1754,7 @@ def metricas_tipo():
             aba_principal = _abrir_aba_mes_flexivel(gc, NOME_PLANILHA, mes, ano)
             for reg in aba_principal.get_all_records():
                 reg_tipo = str(reg.get('Tipo', '')).strip().lower()
-                if reg_tipo == tipo_norm or (tipo_norm in ('expediçao', 'expedição') and reg_tipo in ('expediçao', 'expedição')):
+                if reg_tipo == tipo_norm:
                     cod = str(reg.get('Código', '')).strip().upper()
                     if not cod:
                         continue
