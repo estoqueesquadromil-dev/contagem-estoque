@@ -1005,3 +1005,112 @@ def excluir_saldo_acessorios():
 
     except Exception as e:
         return jsonify({'sucesso': False, 'mensagem': f'Erro: {str(e)}'}), 500
+
+
+
+
+
+@app.route('/metricas_acessorios', methods=['GET'])
+def metricas_acessorios():
+    try:
+        mes = request.args.get('mes', '').strip()
+        ano = request.args.get('ano', '').strip()
+
+        if not mes or not ano:
+            return jsonify({'sucesso': False, 'mensagem': 'Mês e ano são obrigatórios.'}), 400
+
+        nome_aba_mes = f"{int(mes):02d}/{ano}"
+
+        gc = conectar_google_sheets()
+        if not gc:
+            return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'}), 500
+
+        def para_int(valor):
+            if valor is None or valor == "":
+                return 0
+            if isinstance(valor, (int, float)):
+                return int(valor)
+            texto = str(valor).strip()
+            if '.' in texto and ',' in texto:
+                texto = texto.replace('.', '').replace(',', '.')
+            elif '.' in texto:
+                partes = texto.split('.')
+                if len(partes[-1]) == 3 and all(p.lstrip('-').isdigit() for p in partes):
+                    texto = texto.replace('.', '')
+            elif ',' in texto:
+                texto = texto.replace(',', '.')
+            try:
+                return int(float(texto))
+            except ValueError:
+                return 0
+
+        # 1. Busca os itens já contados na planilha principal (todos_produtos_contagem)
+        contados_map = {}  # codigo -> {qtd, dif}
+        try:
+            planilha_principal = gc.open(NOME_PLANILHA)
+            aba_principal = planilha_principal.worksheet(nome_aba_mes)
+            registros_principal = aba_principal.get_all_records()
+
+            for reg in registros_principal:
+                tipo = str(reg.get('Tipo', '')).strip()
+                if tipo == 'Acessório Primário':
+                    cod = str(reg.get('Código', '')).strip().upper()
+                    if not cod:
+                        continue
+                    saldo = para_int(reg.get('Saldo Estoque', 0))
+                    qtd = para_int(reg.get('Quantidade Contada', reg.get('Quantidade', 0)))
+                    dif = qtd - saldo
+                    contados_map[cod] = {'qtd': qtd, 'dif': dif}
+        except Exception:
+            pass
+
+        # 2. Busca a lista planejada de acessórios na planilha Acessórios_Primários
+        codigos_planejados = []
+        try:
+            planilha_acessorios = gc.open(NOME_PLANILHA_ACESSORIOS)
+            aba_acessorios = planilha_acessorios.worksheet(nome_aba_mes)
+            registros_acess = aba_acessorios.get_all_records()
+            for reg in registros_acess:
+                cod = str(reg.get('Código', '')).strip().upper()
+                if cod and cod not in codigos_planejados:
+                    codigos_planejados.append(cod)
+        except Exception:
+            pass
+
+        # Cálculos do Bloco 1: Acurácia por SKU
+        qtd_contados_sku = len(contados_map)
+        qtd_corretos_sku = sum(1 for item in contados_map.values() if item['dif'] == 0)
+        acuracia_sku = round((qtd_corretos_sku / qtd_contados_sku) * 100, 2) if qtd_contados_sku > 0 else 0.0
+
+        # Cálculos do Bloco 2: Índice de Divergência Líquida
+        volume_contado = sum(item['qtd'] for item in contados_map.values())
+        soma_diferenca = sum(item['dif'] for item in contados_map.values())
+        indice_divergencia = round((soma_diferenca / volume_contado) * 100, 2) if volume_contado > 0 else 0.0
+
+        # Cálculos do Bloco 3: Eficiência de Contagem
+        falta_contar = sum(1 for cod in codigos_planejados if cod not in contados_map)
+        total_universo = qtd_contados_sku + falta_contar
+        eficiencia = round((qtd_contados_sku / total_universo) * 100, 2) if total_universo > 0 else 0.0
+
+        return jsonify({
+            'sucesso': True,
+            'acuracia': {
+                'contados': qtd_contados_sku,
+                'corretos': qtd_corretos_sku,
+                'percentual': acuracia_sku
+            },
+            'divergencia': {
+                'volume_contado': volume_contado,
+                'soma_diferenca': soma_diferenca,
+                'percentual': indice_divergencia
+            },
+            'eficiencia': {
+                'contados': qtd_contados_sku,
+                'falta_contar': falta_contar,
+                'percentual': eficiencia
+            }
+        })
+
+    except Exception as e:
+        print(f"Erro em metricas_acessorios: {e}")
+        return jsonify({'sucesso': False, 'mensagem': str(e)}), 500
