@@ -2119,18 +2119,7 @@ async function carregarMetricasAcessorios() {
 }
 
 
-let contadosSemiAtual = 0;
 
-function recalcularEficienciaSemiManual() {
-    const inputFaltam = document.getElementById('ind-semi-efi-faltam');
-    const faltam = Math.max(0, parseInt(inputFaltam.value, 10) || 0);
-    const contados = Math.max(0, Number(contadosSemiAtual) || 0);
-    const total = contados + faltam;
-
-    const eficiencia = total > 0 ? (contados / total) * 100 : 0;
-    const formatado = `${eficiencia.toFixed(2).replace('.', ',')}%`;
-    document.getElementById('ind-semi-efi-pct').innerText = formatado;
-}
 
 async function carregarMetricasSemiAcabado() {
     const mes = document.getElementById('mes-semi').value;
