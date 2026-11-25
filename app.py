@@ -1150,27 +1150,28 @@ def metricas_semi_acabado():
             except ValueError:
                 return 0
 
-        # 1. Busca os itens já contados do tipo Semiacabado na planilha principal
-        contados_map = {}  # codigo -> {qtd, dif}
+        # 1. Puxa direto da planilha todos_produtos_contagem (aba MM/YYYY) onde Tipo == Semiacabado
+        itens_semi = []
+        codigos_contados_set = set()
         try:
             planilha_principal = gc.open(NOME_PLANILHA)
             aba_principal = planilha_principal.worksheet(nome_aba_mes)
             registros_principal = aba_principal.get_all_records()
 
             for reg in registros_principal:
-                tipo = str(reg.get('Tipo', '')).strip().lower()
-                if tipo in ('semiacabado', 'semi-acabado', 'semi acabado'):
+                tipo_norm = str(reg.get('Tipo', '')).strip().lower()
+                if tipo_norm in ('semiacabado', 'semi-acabado', 'semi acabado'):
                     cod = str(reg.get('Código', '')).strip().upper()
-                    if not cod:
-                        continue
-                    saldo = para_int(reg.get('Saldo Estoque', 0))
+                    saldo = para_int(reg.get('Saldo Estoque', reg.get('Saldo', 0)))
                     qtd = para_int(reg.get('Quantidade Contada', reg.get('Quantidade', 0)))
                     dif = qtd - saldo
-                    contados_map[cod] = {'qtd': qtd, 'dif': dif}
-        except Exception:
-            pass
+                    itens_semi.append({'codigo': cod, 'qtd': qtd, 'dif': dif})
+                    if cod:
+                        codigos_contados_set.add(cod)
+        except Exception as e:
+            print(f"[AVISO] Erro ao ler {nome_aba_mes} em {NOME_PLANILHA}: {e}")
 
-        # 2. Busca a lista planejada de semi-acabados na planilha contagem_semi_acabado
+        # 2. Busca pendências cadastradas na planilha contagem_semi_acabado (aba MM/YYYY)
         codigos_planejados = []
         try:
             planilha_semi = gc.open(NOME_PLANILHA_SALDOS)
@@ -1184,17 +1185,17 @@ def metricas_semi_acabado():
             pass
 
         # Card 1: Acurácia por SKU
-        qtd_contados_sku = len(contados_map)
-        qtd_corretos_sku = sum(1 for item in contados_map.values() if item['dif'] == 0)
+        qtd_contados_sku = len(itens_semi)
+        qtd_corretos_sku = sum(1 for item in itens_semi if item['dif'] == 0)
         acuracia_sku = round((qtd_corretos_sku / qtd_contados_sku) * 100, 2) if qtd_contados_sku > 0 else 0.0
 
         # Card 2: Índice de Divergência Líquida
-        volume_contado = sum(item['qtd'] for item in contados_map.values())
-        soma_diferenca = sum(item['dif'] for item in contados_map.values())
+        volume_contado = sum(item['qtd'] for item in itens_semi)
+        soma_diferenca = sum(item['dif'] for item in itens_semi)
         indice_divergencia = round((soma_diferenca / volume_contado) * 100, 2) if volume_contado > 0 else 0.0
 
         # Card 3: Eficiência de Contagem
-        falta_contar = sum(1 for cod in codigos_planejados if cod not in contados_map)
+        falta_contar = sum(1 for cod in codigos_planejados if cod not in codigos_contados_set)
         total_universo = qtd_contados_sku + falta_contar
         eficiencia = round((qtd_contados_sku / total_universo) * 100, 2) if total_universo > 0 else 0.0
 
