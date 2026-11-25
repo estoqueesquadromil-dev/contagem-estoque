@@ -2161,12 +2161,11 @@ async function carregarMetricasSemiAcabado() {
                 }
             }
             document.getElementById('ind-semi-efi-pct').innerText = formatarPct(dados.eficiencia.percentual);
+        }
     } catch (e) {
         console.error('Erro ao carregar métricas de semi-acabado:', e);
     }
 }
-    
-
 
 let contadosSemiAtual = 0;
 
