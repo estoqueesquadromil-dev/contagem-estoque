@@ -330,8 +330,7 @@ def teste_direto_planilha():
     except Exception as e:
         return jsonify({"sucesso": False, "erro": str(e)})
 
-if __name__ == '__main__':
-    app.run(debug=True)
+
 
 
 
@@ -1221,3 +1220,8 @@ def metricas_semi_acabado():
     except Exception as e:
         print(f"Erro em metricas_semi_acabado: {e}")
         return jsonify({'sucesso': False, 'mensagem': str(e)}), 500
+
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
