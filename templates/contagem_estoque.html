@@ -59,8 +59,15 @@
     <a href="#" class="nav-link-item" onclick="mostrarSecao('consultar', this)"><i class="bi bi-journal-text"></i> Consultar Lotes</a>
     <a href="#" class="nav-link-item" onclick="mostrarSecaoSemiAcabado(this)"><i class="bi bi-clock-history"></i> Semi_Acabado (Falta Contar)</a>
     <a href="#" class="nav-link-item" onclick="mostrarSecaoAcessorios(this)"><i class="bi bi-box-seam"></i> Acessórios (Falta Contar)</a>
+    <a href="#" class="nav-link-item" onclick="mostrarSecaoTipoDinamico('Acessório Almoxarifado', this)"><i class="bi bi-tools"></i> Acess. Almoxarifado</a>
+    <a href="#" class="nav-link-item" onclick="mostrarSecaoTipoDinamico('Folha de Porta Madeira', this)"><i class="bi bi-door-closed"></i> Folha Porta Madeira</a>
+    <a href="#" class="nav-link-item" onclick="mostrarSecaoTipoDinamico('Perfil', this)"><i class="bi bi-columns-gap"></i> Perfil</a>
+    <a href="#" class="nav-link-item" onclick="mostrarSecaoTipoDinamico('Produto Acabado', this)"><i class="bi bi-check2-square"></i> Produto Acabado</a>
+    <a href="#" class="nav-link-item" onclick="mostrarSecaoTipoDinamico('Subproduto', this)"><i class="bi bi-layers"></i> Subproduto</a>
+    <a href="#" class="nav-link-item" onclick="mostrarSecaoTipoDinamico('Vidro Temperado', this)"><i class="bi bi-window"></i> Vidro Temperado</a>
+    <a href="#" class="nav-link-item" onclick="mostrarSecaoTipoDinamico('Vidros', this)"><i class="bi bi-grid"></i> Vidros</a>
+    <a href="#" class="nav-link-item" onclick="mostrarSecaoTipoDinamico('Expediçao', this)"><i class="bi bi-truck"></i> Expediçao</a>
   </nav>
-
   <main class="main-content" id="mainContent">
     
 <!-- SEÇÃO 1: LANÇAR -->
@@ -631,6 +638,209 @@
                     </tbody>
                 </table>
             </div>
+        </div>
+      </div>
+    </section>
+
+
+
+
+        <!-- PAINEL DINÂMICO PARA OS DEMAIS TIPOS -->
+    <section id="sec-tipo-dinamico" class="page-section">
+      <div class="card p-4 mb-4">
+        <h4 id="titulo-tipo-dinamico" class="text-primary mb-3">Tipo por Contar</h4>
+        <p id="subtitulo-tipo-dinamico" class="text-muted" style="font-size: 14px;">
+          Gerenciamento de saldos, colagem de códigos e controle de pendências.
+        </p>
+    
+        <!-- BLOCÃO PARA COLAR SALDO DE ESTOQUE -->
+        <div class="card bg-light p-3 mb-4 border">
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label class="form-label fw-bold text-dark m-0">Colar Saldo de Estoque:</label>
+              <small class="text-muted d-block mb-2">Cole as colunas diretamente aqui (ex: COD01 10)</small>
+              <textarea id="txtSaldoEstoqueTipo" class="form-control" rows="3" placeholder="COD01	10&#10;COD02	5"></textarea>
+            </div>
+            <div class="col-md-4 d-flex flex-column justify-content-between">
+              <div>
+                <small class="text-muted d-block fw-semibold">Última Atualização:</small>
+                <span id="txtUltimaAtualizacaoTipo" class="fw-bold text-primary d-block mb-2">Nenhuma atualização salva</span>
+              </div>
+              <button type="button" class="btn btn-success fw-bold w-100" onclick="salvarSaldoEstoqueTipoDinamico()">
+                <i class="bi bi-save"></i> Salvar Saldo
+              </button>
+            </div>
+          </div>
+        </div>
+    
+        <!-- CAMPO PARA COLAR CÓDIGOS A SEREM CONTADOS -->
+        <div class="card bg-white p-3 mb-4 border shadow-sm">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-9">
+              <label class="form-label fw-bold text-dark">Colar Códigos para Contagem:</label>
+              <textarea id="txtCodigosContarTipo" class="form-control" rows="2" placeholder="Cole os códigos aqui..."></textarea>
+            </div>
+            <div class="col-md-3">
+              <button type="button" class="btn btn-primary fw-bold w-100" onclick="salvarCodigosTipoDinamico()">
+                <i class="bi bi-plus-circle"></i> Salvar na Aba do Mês
+              </button>
+            </div>
+          </div>
+        </div>
+    
+        <!-- FILTROS DE MÊS E ANO -->
+        <div class="row g-2 align-items-end mb-3">
+          <div class="col-md-3">
+            <label for="mes-tipo" class="form-label fw-semibold">Mês:</label>
+            <select id="mes-tipo" class="form-select" onchange="carregarDadosTipoDinamico()">
+              <option value="1">01 - Janeiro</option><option value="2">02 - Fevereiro</option><option value="3">03 - Março</option>
+              <option value="4">04 - Abril</option><option value="5">05 - Maio</option><option value="6">06 - Junho</option>
+              <option value="7">07 - Julho</option><option value="8">08 - Agosto</option><option value="9">09 - Setembro</option>
+              <option value="10" selected>10 - Outubro</option><option value="11">11 - Novembro</option><option value="12">12 - Dezembro</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label for="ano-tipo" class="form-label fw-semibold">Ano:</label>
+            <input type="number" id="ano-tipo" class="form-control" value="2026" onchange="carregarDadosTipoDinamico()">
+          </div>
+          <div class="col-md-3">
+            <button type="button" class="btn btn-secondary fw-bold w-100" onclick="carregarDadosTipoDinamico()">Filtrar Pendentes</button>
+          </div>
+        </div>
+    
+        <!-- INDICADORES DE DESEMPENHO -->
+        <div class="row g-3 mb-4">
+          <!-- CARD 1: ACURÁCIA POR SKU -->
+          <div class="col-md-4">
+            <div class="card border h-100 shadow-sm">
+              <div class="card-header bg-primary text-white fw-bold py-2">
+                <i class="bi bi-bullseye"></i> Acurácia por SKU
+              </div>
+              <div class="card-body py-3">
+                <div class="d-flex justify-content-between mb-1">
+                  <span class="text-muted small">Produtos Contados (SKUs):</span>
+                  <strong id="ind-tipo-contados" class="text-dark">0</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                  <span class="text-muted small">Corretos (Diferença = 0):</span>
+                  <strong id="ind-tipo-corretos" class="text-success">0</strong>
+                </div>
+                <div class="border-top pt-2 d-flex justify-content-between align-items-center">
+                  <span class="fw-semibold text-dark">Acurácia por SKU:</span>
+                  <span id="ind-tipo-pct" class="badge bg-primary fs-6">0,00%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+    
+          <!-- CARD 2: ÍNDICE DE DIVERGÊNCIA LÍQUIDA -->
+          <div class="col-md-4">
+            <div class="card border h-100 shadow-sm">
+              <div class="card-header bg-dark text-white fw-bold py-2">
+                <i class="bi bi-bar-chart-line"></i> Índice de Divergência Líquida
+              </div>
+              <div class="card-body py-3">
+                <div class="d-flex justify-content-between mb-1">
+                  <span class="text-muted small">Volume Contado:</span>
+                  <strong id="ind-tipo-div-volume" class="text-dark">0</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                  <span class="text-muted small">Soma das Diferenças:</span>
+                  <strong id="ind-tipo-div-soma" class="text-dark">0</strong>
+                </div>
+                <div class="border-top pt-2 d-flex justify-content-between align-items-center">
+                  <span class="fw-semibold text-dark">Divergência Líquida:</span>
+                  <span id="ind-tipo-div-pct" class="badge bg-secondary fs-6">0,00%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+    
+          <!-- CARD 3: EFICIÊNCIA DE CONTAGEM -->
+          <div class="col-md-4">
+            <div class="card border h-100 shadow-sm">
+              <div class="card-header bg-success text-white fw-bold py-2">
+                <i class="bi bi-speedometer2"></i> Eficiência da Contagem
+              </div>
+              <div class="card-body py-3">
+                <div class="d-flex justify-content-between mb-1">
+                  <span class="text-muted small">Quantidade Contada:</span>
+                  <strong id="ind-tipo-efi-contados" class="text-dark">0</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                  <span class="text-muted small">Falta Contar:</span>
+                  <strong id="ind-tipo-efi-faltam" class="text-warning text-dark">0</strong>
+                </div>
+                <div class="border-top pt-2 d-flex justify-content-between align-items-center">
+                  <span class="fw-semibold text-dark">Eficiência:</span>
+                  <span id="ind-tipo-efi-pct" class="badge bg-success fs-6">0,00%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+    
+        <div class="d-flex flex-wrap justify-content-end gap-2 mb-3">
+          <button type="button" id="btn-enviar-tipo-dinamico" class="btn btn-primary btn-sm fw-bold" onclick="enviarEficienciaTipoDinamico()">
+            <i class="bi bi-send-check"></i> Enviar Percentuais
+          </button>
+          <button type="button" class="btn btn-outline-success btn-sm fw-bold" onclick="sincronizarTodosTiposEficiencia('tipo')">
+            <i class="bi bi-arrow-repeat"></i> Enviar Todos os Tipos do Mês
+          </button>
+        </div>
+    
+        <!-- TABELA 1: SALDOS SALVOS -->
+        <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+          <h5 class="text-dark m-0">Lista de Saldos Salvos</h5>
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSaldosTipo" aria-expanded="true" aria-controls="collapseSaldosTipo">
+            <i class="bi bi-chevron-down"></i> Retrair / Expandir
+          </button>
+        </div>
+        <div class="collapse show" id="collapseSaldosTipo">
+          <div class="table-responsive mb-4">
+            <table id="tabela-saldos-tipo" class="table table-bordered table-striped align-middle">
+              <thead class="table-dark">
+                <tr>
+                  <th>Mês/Ano</th>
+                  <th>Código</th>
+                  <th>Quantidade</th>
+                  <th style="width: 140px;">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td colspan="4" class="text-center text-muted py-2">Nenhum saldo carregado.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+    
+        <!-- TABELA 2: FALTAM CONTAR -->
+        <div class="d-flex justify-content-between align-items-center mt-3 mb-2">
+          <div>
+            <h5 id="titulo-tabela-faltam-tipo" class="text-dark m-0 d-inline-block me-2">Produtos que Faltam Contar</h5>
+            <div id="contador-pendentes-tipo" class="contador-badge" style="display: inline-block; background: #fff3cd; color: #856404; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 13px;">
+              Total por contar: 0
+            </div>
+          </div>
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFaltamTipo" aria-expanded="true" aria-controls="collapseFaltamTipo">
+            <i class="bi bi-chevron-down"></i> Retrair / Expandir
+          </button>
+        </div>
+        <div class="collapse show" id="collapseFaltamTipo">
+          <div class="table-responsive">
+            <table id="tabela-tipo-faltam" class="table table-bordered table-striped align-middle">
+              <thead class="table-dark">
+                <tr>
+                  <th>Data</th>
+                  <th>Código</th>
+                  <th style="width: 140px;">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td colspan="3" class="text-center text-muted py-3">Selecione o mês e ano e clique em Filtrar Pendentes.</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </section>
@@ -2277,9 +2487,147 @@ async function sincronizarTodosTiposEficiencia(origem) {
 }
 
 
+function mostrarSecaoTipoDinamico(tipoNome, el) {
+  document.querySelectorAll('.nav-link-item').forEach(link => link.classList.remove('active'));
+  if (el) el.classList.add('active');
+  abrirSecaoTipo(tipoNome);
+}
 
 
+window.tipoSelecionadoAtual = 'Acessório Almoxarifado';
 
+function abrirSecaoTipo(tipoNome) {
+  window.tipoSelecionadoAtual = tipoNome;
+
+  document.querySelectorAll('.page-section').forEach(sec => sec.classList.remove('active'));
+  const secTipo = document.getElementById('sec-tipo-dinamico');
+  if (secTipo) secTipo.classList.add('active');
+
+  document.getElementById('titulo-tipo-dinamico').innerText = `${tipoNome} por Contar`;
+  document.getElementById('subtitulo-tipo-dinamico').innerText =
+    `Gerenciamento de saldos, colagem de códigos e controle de pendências de ${tipoNome}.`;
+  document.getElementById('titulo-tabela-faltam-tipo').innerText = `${tipoNome} que Faltam Contar`;
+  document.getElementById('btn-enviar-tipo-dinamico').innerHTML =
+    `<i class="bi bi-send-check"></i> Enviar Percentuais (${tipoNome})`;
+
+  carregarDadosTipoDinamico();
+}
+
+async function carregarDadosTipoDinamico() {
+  const tipo = window.tipoSelecionadoAtual;
+  const mes = document.getElementById('mes-tipo').value;
+  const ano = document.getElementById('ano-tipo').value;
+  const dataFormatada = `${String(mes).padStart(2, '0')}/${ano}`;
+  const formatarPct = (val) => `${Number(val || 0).toFixed(2).replace('.', ',')}%`;
+
+  const tbodyFalta = document.querySelector('#tabela-tipo-faltam tbody');
+  const tbodySaldos = document.querySelector('#tabela-saldos-tipo tbody');
+  const contadorBadge = document.getElementById('contador-pendentes-tipo');
+
+  tbodyFalta.innerHTML = '<tr><td colspan="3" class="text-center py-3">A verificar produtos...</td></tr>';
+
+  try {
+    // 1. Pendentes do tipo
+    const resPend = await fetch(`/produtos_tipo_faltam?tipo=${encodeURIComponent(tipo)}&mes=${mes}&ano=${ano}`);
+    const dadosPend = await resPend.json();
+    if (dadosPend.sucesso) {
+      const itens = dadosPend.itens || [];
+      contadorBadge.textContent = `Total por contar: ${itens.length} produtos`;
+      tbodyFalta.innerHTML = '';
+      if (itens.length === 0) {
+        tbodyFalta.innerHTML = '<tr><td colspan="3" class="text-center text-success fw-bold py-3">Todos os produtos já foram contados neste mês.</td></tr>';
+      } else {
+        itens.forEach(item => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${dataFormatada}</td>
+            <td class="fw-bold">${item.codigo}</td>
+            <td><button type="button" class="btn btn-danger btn-sm" onclick="excluirItemPendenteTipo('${item.codigo}')">Excluir</button></td>
+          `;
+          tbodyFalta.appendChild(tr);
+        });
+      }
+    }
+
+    // 2. Saldos salvos
+    const resSaldos = await fetch(`/obter_saldo?data=${encodeURIComponent(dataFormatada)}&tipo=${encodeURIComponent(tipo)}`);
+    const dadosSaldos = await resSaldos.json();
+    tbodySaldos.innerHTML = '';
+    if (dadosSaldos.sucesso && dadosSaldos.texto) {
+      dadosSaldos.texto.split('\n').forEach(linha => {
+        const partes = linha.split('\t');
+        if (partes.length >= 3) {
+          const [idRegistro, codigo, qtd] = partes;
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${dataFormatada}</td>
+            <td class="fw-bold">${codigo}</td>
+            <td>${qtd}</td>
+            <td>
+              <div class="d-flex gap-1">
+                <button type="button" class="btn btn-warning btn-sm fw-bold text-dark" onclick="editarSaldoSalvoPorId('${idRegistro}', '${codigo}', '${qtd}')">Editar</button>
+                <button type="button" class="btn btn-danger btn-sm" onclick="excluirSaldoSalvoPorId('${idRegistro}')">Excluir</button>
+              </div>
+            </td>
+          `;
+          tbodySaldos.appendChild(tr);
+        }
+      });
+    }
+    if (!tbodySaldos.innerHTML) {
+      tbodySaldos.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-2">Nenhum saldo guardado para este mês.</td></tr>';
+    }
+
+    // 3. Métricas (mesma lógica do Acessório Primário)
+    const resMet = await fetch(`/metricas_tipo?tipo=${encodeURIComponent(tipo)}&mes=${mes}&ano=${ano}`);
+    const met = await resMet.json();
+    if (met.sucesso) {
+      document.getElementById('ind-tipo-contados').innerText = met.acuracia.contados;
+      document.getElementById('ind-tipo-corretos').innerText = met.acuracia.corretos;
+      document.getElementById('ind-tipo-pct').innerText = formatarPct(met.acuracia.percentual);
+
+      document.getElementById('ind-tipo-div-volume').innerText = met.divergencia.volume_contado;
+      const somaDif = met.divergencia.soma_diferenca;
+      const elSoma = document.getElementById('ind-tipo-div-soma');
+      elSoma.innerText = somaDif > 0 ? `+${somaDif}` : somaDif;
+      elSoma.className = somaDif < 0 ? 'text-danger fw-bold' : (somaDif > 0 ? 'text-success fw-bold' : 'text-dark fw-bold');
+
+      const pctDiv = met.divergencia.percentual;
+      const elPctDiv = document.getElementById('ind-tipo-div-pct');
+      elPctDiv.innerText = pctDiv > 0 ? `+${formatarPct(pctDiv)}` : formatarPct(pctDiv);
+      elPctDiv.className = pctDiv < 0 ? 'badge bg-danger fs-6' : (pctDiv > 0 ? 'badge bg-warning text-dark fs-6' : 'badge bg-success fs-6');
+
+      document.getElementById('ind-tipo-efi-contados').innerText = met.eficiencia.contados;
+      document.getElementById('ind-tipo-efi-faltam').innerText = met.eficiencia.falta_contar;
+      document.getElementById('ind-tipo-efi-pct').innerText = formatarPct(met.eficiencia.percentual);
+    }
+  } catch (err) {
+    console.error('Erro ao carregar dados do tipo:', err);
+    tbodyFalta.innerHTML = '<tr><td colspan="3" class="text-center text-danger py-3">Erro de comunicação com o servidor.</td></tr>';
+  }
+}
+
+async function enviarEficienciaTipoDinamico() {
+  const tipo = window.tipoSelecionadoAtual;
+  const mes = document.getElementById('mes-tipo').value;
+  const ano = document.getElementById('ano-tipo').value;
+
+  try {
+    const res = await fetch('/salvar_eficiencia', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mes, ano, tipo, falta_contar: null })
+    });
+    const dados = await res.json();
+    alert(dados.mensagem || (dados.sucesso ? 'Enviado com sucesso!' : 'Falha ao enviar.'));
+  } catch (err) {
+    console.error('Erro ao enviar eficiência do tipo:', err);
+    alert('Erro ao enviar percentuais.');
+  }
+}
+
+
+    
     
   </script>
 </body>
