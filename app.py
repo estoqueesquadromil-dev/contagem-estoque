@@ -418,24 +418,26 @@ def salvar_saldo():
 def obter_saldo():
     try:
         data_mes_ano = request.args.get('data')
+        tipo_param = str(request.args.get('tipo', '') or '').strip().lower()
         nome_aba = f"SALDO_{data_mes_ano.replace('/', '_')}"
 
+        nome_planilha_alvo = PLANILHAS_TIPOS.get(tipo_param, NOME_PLANILHA_SALDOS)
+
         gc = conectar_google_sheets()
-        planilha = gc.open(NOME_PLANILHA_SALDOS)
+        planilha = gc.open(nome_planilha_alvo)
 
         try:
             aba = planilha.worksheet(nome_aba)
             registros = aba.get_all_values()
-            
+
             if len(registros) > 1:
                 linhas_texto = []
                 ultima_atualizacao = registros[1][3] if len(registros[1]) >= 4 else ''
-                
+
                 for r in registros[1:]:
                     if len(r) >= 3:
-                        # Formato enviado: ID \t CODIGO \t SALDO
                         linhas_texto.append(f"{r[0]}\t{r[1]}\t{r[2]}")
-                
+
                 return jsonify({
                     "sucesso": True,
                     "texto": "\n".join(linhas_texto),
@@ -509,22 +511,26 @@ def obter_saldo_item():
         if not codigo_busca or not data_mes_ano:
             return jsonify({'sucesso': False, 'saldo': 0})
 
-        # Define qual planilha consultar com base no tipo do produto
-        if tipo_produto == 'Acessório Primário':
-            nome_planilha_alvo = NOME_PLANILHA_ACESSORIOS # 'Acessórios_Primários'
+        # Define qual planilha consultar com base no tipo do produto usando PLANILHAS_TIPOS
+        tipo_norm = tipo_produto.lower()
+        if tipo_norm in PLANILHAS_TIPOS:
+            nome_planilha_alvo = PLANILHAS_TIPOS[tipo_norm]
         else:
-            nome_planilha_alvo = NOME_PLANILHA_SALDOS # 'contagem_semi_acabado'
+            nome_planilha_alvo = NOME_PLANILHA_SALDOS
 
         gc = conectar_google_sheets()
+        if not gc:
+            return jsonify({'sucesso': False, 'saldo': 0})
+
         planilha = gc.open(nome_planilha_alvo)
 
         try:
             aba = planilha.worksheet(nome_aba)
             registros = aba.get_all_values()
-            
+
             for linha in registros[1:]:
                 if len(linha) >= 3:
-                    cod_na_planilha = str(linha[1]).strip().upper() # Coluna B = Código
+                    cod_na_planilha = str(linha[1]).strip().upper()  # Coluna B = Código
                     if cod_na_planilha == codigo_busca:
                         # Limpa o saldo removendo o ponto de milhar (ex: "2.600" -> 2600)
                         saldo_str = str(linha[2]).strip().replace('.', '').replace(',', '.')
@@ -545,6 +551,7 @@ def obter_saldo_item():
     except Exception as e:
         print(f"Erro ao obter saldo do item: {e}")
         return jsonify({'sucesso': False, 'saldo': 0})
+```[cite: 3]
 
 
 
@@ -1654,7 +1661,158 @@ def salvar_eficiencia():
 
 
 
+@app.route('/produtos_tipo_faltam', methods=['GET'])
+def produtos_tipo_faltam():
+    try:
+        tipo_raw = str(request.args.get('tipo', '')).strip()
+        mes = str(request.args.get('mes', '')).strip()
+        ano = str(request.args.get('ano', '')).strip()
 
+        if not tipo_raw or not mes or not ano:
+            return jsonify({'sucesso': False, 'mensagem': 'Tipo, mês e ano são obrigatórios.'}), 400
+
+        tipo_norm = tipo_raw.lower()
+        if tipo_norm not in PLANILHAS_TIPOS:
+            return jsonify({'sucesso': False, 'mensagem': f'Tipo "{tipo_raw}" não mapeado em PLANILHAS_TIPOS.'}), 400
+
+        nome_planilha_tipo = PLANILHAS_TIPOS[tipo_norm]
+        nome_aba_mes = f"{int(mes):02d}/{ano}"
+        nome_aba_saldo = f"SALDO_{int(mes):02d}_{ano}"
+
+        gc = conectar_google_sheets()
+        if not gc:
+            return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'}), 500
+
+        planilha_tipo = gc.open(nome_planilha_tipo)
+
+        saldos_dict = {}
+        try:
+            aba_saldo = planilha_tipo.worksheet(nome_aba_saldo)
+            registros_saldo = aba_saldo.get_all_values()
+            for linha in registros_saldo[1:]:
+                if len(linha) >= 3:
+                    cod = str(linha[1]).strip().upper()
+                    sld = str(linha[2]).strip()
+                    if cod:
+                        saldos_dict[cod] = sld
+        except Exception:
+            pass
+
+        codigos_salvos = []
+        try:
+            aba_mes = _abrir_aba_mes_flexivel(gc, nome_planilha_tipo, mes, ano)
+            for reg in aba_mes.get_all_records():
+                cod = str(reg.get('Código', '')).strip().upper()
+                if cod and cod not in codigos_salvos:
+                    codigos_salvos.append(cod)
+        except Exception:
+            return jsonify({'sucesso': True, 'itens': []})
+
+        if not codigos_salvos:
+            return jsonify({'sucesso': True, 'itens': []})
+
+        codigos_ja_contados = set()
+        try:
+            aba_principal = _abrir_aba_mes_flexivel(gc, NOME_PLANILHA, mes, ano)
+            for reg in aba_principal.get_all_records():
+                reg_tipo = str(reg.get('Tipo', '')).strip().lower()
+                if reg_tipo == tipo_norm or (tipo_norm in ('expediçao', 'expedição') and reg_tipo in ('expediçao', 'expedição')):
+                    cod = str(reg.get('Código', '')).strip().upper()
+                    if cod:
+                        codigos_ja_contados.add(cod)
+        except Exception:
+            pass
+
+        produtos_pendentes = []
+        for cod in codigos_salvos:
+            if cod not in codigos_ja_contados:
+                produtos_pendentes.append({
+                    "codigo": cod,
+                    "descricao": f"{tipo_raw} Pendente",
+                    "saldo": saldos_dict.get(cod, "0")
+                })
+
+        return jsonify({'sucesso': True, 'itens': produtos_pendentes})
+    except Exception as e:
+        print(f"Erro em produtos_tipo_faltam: {e}")
+        return jsonify({'sucesso': False, 'mensagem': str(e)}), 500
+
+
+@app.route('/metricas_tipo', methods=['GET'])
+def metricas_tipo():
+    try:
+        tipo_raw = str(request.args.get('tipo', '')).strip()
+        mes = str(request.args.get('mes', '')).strip()
+        ano = str(request.args.get('ano', '')).strip()
+
+        if not tipo_raw or not mes or not ano:
+            return jsonify({'sucesso': False, 'mensagem': 'Tipo, mês e ano são obrigatórios.'}), 400
+
+        tipo_norm = tipo_raw.lower()
+        gc = conectar_google_sheets()
+        if not gc:
+            return jsonify({'sucesso': False, 'mensagem': 'Erro de conexão com o Google Sheets.'}), 500
+
+        contados_map = {}
+        try:
+            aba_principal = _abrir_aba_mes_flexivel(gc, NOME_PLANILHA, mes, ano)
+            for reg in aba_principal.get_all_records():
+                reg_tipo = str(reg.get('Tipo', '')).strip().lower()
+                if reg_tipo == tipo_norm or (tipo_norm in ('expediçao', 'expedição') and reg_tipo in ('expediçao', 'expedição')):
+                    cod = str(reg.get('Código', '')).strip().upper()
+                    if not cod:
+                        continue
+                    saldo = int(_converter_float_br(reg.get('Saldo Estoque', reg.get('Saldo', 0))))
+                    qtd = int(_converter_float_br(reg.get('Quantidade Contada', reg.get('Quantidade', 0))))
+                    dif = qtd - saldo
+                    contados_map[cod] = {'qtd': qtd, 'dif': dif}
+        except Exception:
+            pass
+
+        codigos_planejados = []
+        if tipo_norm in PLANILHAS_TIPOS:
+            try:
+                aba_ref = _abrir_aba_mes_flexivel(gc, PLANILHAS_TIPOS[tipo_norm], mes, ano)
+                for reg in aba_ref.get_all_records():
+                    cod = str(reg.get('Código', '')).strip().upper()
+                    if cod and cod not in codigos_planejados:
+                        codigos_planejados.append(cod)
+            except Exception:
+                pass
+
+        qtd_contados_sku = len(contados_map)
+        qtd_corretos_sku = sum(1 for item in contados_map.values() if item['dif'] == 0)
+        acuracia_sku = round((qtd_corretos_sku / qtd_contados_sku) * 100, 2) if qtd_contados_sku > 0 else 0.0
+
+        volume_contado = sum(item['qtd'] for item in contados_map.values())
+        soma_diferenca = sum(item['dif'] for item in contados_map.values())
+        indice_divergencia = round((soma_diferenca / volume_contado) * 100, 2) if volume_contado > 0 else 0.0
+
+        falta_contar = sum(1 for cod in codigos_planejados if cod not in contados_map)
+        total_universo = qtd_contados_sku + falta_contar
+        eficiencia = round((qtd_contados_sku / total_universo) * 100, 2) if total_universo > 0 else 0.0
+
+        return jsonify({
+            'sucesso': True,
+            'acuracia': {
+                'contados': qtd_contados_sku,
+                'corretos': qtd_corretos_sku,
+                'percentual': acuracia_sku
+            },
+            'divergencia': {
+                'volume_contado': volume_contado,
+                'soma_diferenca': soma_diferenca,
+                'percentual': indice_divergencia
+            },
+            'eficiencia': {
+                'contados': qtd_contados_sku,
+                'falta_contar': falta_contar,
+                'percentual': eficiencia
+            }
+        })
+    except Exception as e:
+        print(f"Erro em metricas_tipo: {e}")
+        return jsonify({'sucesso': False, 'mensagem': str(e)}), 500
 
 
 
