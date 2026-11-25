@@ -2149,12 +2149,18 @@ async function carregarMetricasSemiAcabado() {
             elPctDiv.innerText = pctDiv > 0 ? `+${formatarPct(pctDiv)}` : formatarPct(pctDiv);
             elPctDiv.className = pctDiv < 0 ? 'badge bg-danger fs-6' : (pctDiv > 0 ? 'badge bg-warning text-dark fs-6' : 'badge bg-success fs-6');
 
-            // Card 3: Eficiência (com campo editável em Falta Contar)
-            contadosSemiAtual = Number(dados.eficiencia.contados) || 0;
-            document.getElementById('ind-semi-efi-contados').innerText = contadosSemiAtual;
-            document.getElementById('ind-semi-efi-faltam').value = Number(dados.eficiencia.falta_contar) || 0;
-            recalcularEficienciaSemiManual();
-        }
+            // Card 3: Eficiência
+            window.contadosSemiAtual = Number(dados.eficiencia.contados) || 0;
+            document.getElementById('ind-semi-efi-contados').innerText = dados.eficiencia.contados;
+            const elFaltaSemi = document.getElementById('ind-semi-efi-faltam');
+            if (elFaltaSemi) {
+                if (elFaltaSemi.tagName === 'INPUT') {
+                    elFaltaSemi.value = dados.eficiencia.falta_contar;
+                } else {
+                    elFaltaSemi.innerText = dados.eficiencia.falta_contar;
+                }
+            }
+            document.getElementById('ind-semi-efi-pct').innerText = formatarPct(dados.eficiencia.percentual);
     } catch (e) {
         console.error('Erro ao carregar métricas de semi-acabado:', e);
     }
