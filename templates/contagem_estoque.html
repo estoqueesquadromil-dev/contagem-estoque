@@ -344,20 +344,20 @@
             </div>
           </div>
 
-          <!-- CARD 3: EFICIÊNCIA DE CONTAGEM -->
+<!-- CARD 3: EFICIÊNCIA DE CONTAGEM -->
           <div class="col-md-4">
             <div class="card border h-100 shadow-sm">
               <div class="card-header bg-success text-white fw-bold py-2">
                 <i class="bi bi-speedometer2"></i> Eficiência da Contagem
               </div>
               <div class="card-body py-3">
-                <div class="d-flex justify-content-between mb-1">
+                <div class="d-flex justify-content-between align-items-center mb-1">
                   <span class="text-muted small">Quantidade Contada:</span>
                   <strong id="ind-semi-efi-contados" class="text-dark">0</strong>
                 </div>
-                <div class="d-flex justify-content-between mb-2">
-                  <span class="text-muted small">Falta Contar:</span>
-                  <strong id="ind-semi-efi-faltam" class="text-warning text-dark">0</strong>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <label for="ind-semi-efi-faltam" class="text-muted small m-0">Falta Contar:</label>
+                  <input type="number" id="ind-semi-efi-faltam" class="form-control form-control-sm text-end fw-bold" value="0" min="0" style="width: 95px;" oninput="recalcularEficienciaSemiManual()">
                 </div>
                 <div class="border-top pt-2 d-flex justify-content-between align-items-center">
                   <span class="fw-semibold text-dark">Eficiência:</span>
@@ -2105,6 +2105,19 @@ async function carregarMetricasAcessorios() {
 }
 
 
+let contadosSemiAtual = 0;
+
+function recalcularEficienciaSemiManual() {
+    const inputFaltam = document.getElementById('ind-semi-efi-faltam');
+    const faltam = Math.max(0, parseInt(inputFaltam.value, 10) || 0);
+    const contados = Math.max(0, Number(contadosSemiAtual) || 0);
+    const total = contados + faltam;
+
+    const eficiencia = total > 0 ? (contados / total) * 100 : 0;
+    const formatado = `${eficiencia.toFixed(2).replace('.', ',')}%`;
+    document.getElementById('ind-semi-efi-pct').innerText = formatado;
+}
+
 async function carregarMetricasSemiAcabado() {
     const mes = document.getElementById('mes-semi').value;
     const ano = document.getElementById('ano-semi').value;
@@ -2133,16 +2146,16 @@ async function carregarMetricasSemiAcabado() {
             elPctDiv.innerText = pctDiv > 0 ? `+${formatarPct(pctDiv)}` : formatarPct(pctDiv);
             elPctDiv.className = pctDiv < 0 ? 'badge bg-danger fs-6' : (pctDiv > 0 ? 'badge bg-warning text-dark fs-6' : 'badge bg-success fs-6');
 
-            // Card 3: Eficiência
-            document.getElementById('ind-semi-efi-contados').innerText = dados.eficiencia.contados;
-            document.getElementById('ind-semi-efi-faltam').innerText = dados.eficiencia.falta_contar;
-            document.getElementById('ind-semi-efi-pct').innerText = formatarPct(dados.eficiencia.percentual);
+            // Card 3: Eficiência (com campo editável em Falta Contar)
+            contadosSemiAtual = Number(dados.eficiencia.contados) || 0;
+            document.getElementById('ind-semi-efi-contados').innerText = contadosSemiAtual;
+            document.getElementById('ind-semi-efi-faltam').value = Number(dados.eficiencia.falta_contar) || 0;
+            recalcularEficienciaSemiManual();
         }
     } catch (e) {
         console.error('Erro ao carregar métricas de semi-acabado:', e);
     }
 }
-    
     
     
   </script>
