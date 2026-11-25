@@ -276,11 +276,11 @@
           </div>
         </div>
 
-        <!-- FILTROS DE MÊS E ANO -->
+<!-- FILTROS DE MÊS E ANO -->
         <div class="row g-2 align-items-end mb-3">
             <div class="col-md-3">
                 <label for="mes-semi" class="form-label fw-semibold">Mês:</label>
-                <select id="mes-semi" class="form-select">
+                <select id="mes-semi" class="form-select" onchange="carregarSemiAcabadosFaltaContar()">
                     <option value="1">01 - Janeiro</option><option value="2">02 - Fevereiro</option><option value="3">03 - Março</option>
                     <option value="4">04 - Abril</option><option value="5">05 - Maio</option><option value="6">06 - Junho</option>
                     <option value="7">07 - Julho</option><option value="8">08 - Agosto</option><option value="9">09 - Setembro</option>
@@ -289,13 +289,88 @@
             </div>
             <div class="col-md-2">
                 <label for="ano-semi" class="form-label fw-semibold">Ano:</label>
-                <input type="number" id="ano-semi" class="form-control" value="2026">
+                <input type="number" id="ano-semi" class="form-control" value="2026" onchange="carregarSemiAcabadosFaltaContar()">
             </div>
             <div class="col-md-3">
                 <button class="btn btn-secondary fw-bold w-100" onclick="carregarSemiAcabadosFaltaContar()">Filtrar Pendentes</button>
             </div>
         </div>
 
+<!-- INDICADORES DE DESEMPENHO (SEMIACABADO) -->
+        <div class="row g-3 mb-4">
+          <!-- CARD 1: ACURÁCIA POR SKU -->
+          <div class="col-md-4">
+            <div class="card border h-100 shadow-sm">
+              <div class="card-header bg-primary text-white fw-bold py-2">
+                <i class="bi bi-bullseye"></i> Acurácia por SKU
+              </div>
+              <div class="card-body py-3">
+                <div class="d-flex justify-content-between mb-1">
+                  <span class="text-muted small">Produtos Contados (SKUs):</span>
+                  <strong id="ind-semi-contados" class="text-dark">0</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                  <span class="text-muted small">Corretos (Diferença = 0):</span>
+                  <strong id="ind-semi-corretos" class="text-success">0</strong>
+                </div>
+                <div class="border-top pt-2 d-flex justify-content-between align-items-center">
+                  <span class="fw-semibold text-dark">Acurácia por SKU:</span>
+                  <span id="ind-semi-pct" class="badge bg-primary fs-6">0,00%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD 2: ÍNDICE DE DIVERGÊNCIA LÍQUIDA -->
+          <div class="col-md-4">
+            <div class="card border h-100 shadow-sm">
+              <div class="card-header bg-dark text-white fw-bold py-2">
+                <i class="bi bi-bar-chart-line"></i> Índice de Divergência Líquida
+              </div>
+              <div class="card-body py-3">
+                <div class="d-flex justify-content-between mb-1">
+                  <span class="text-muted small">Volume Contado:</span>
+                  <strong id="ind-semi-div-volume" class="text-dark">0</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                  <span class="text-muted small">Soma das Diferenças:</span>
+                  <strong id="ind-semi-div-soma" class="text-dark">0</strong>
+                </div>
+                <div class="border-top pt-2 d-flex justify-content-between align-items-center">
+                  <span class="fw-semibold text-dark">Divergência Líquida:</span>
+                  <span id="ind-semi-div-pct" class="badge bg-secondary fs-6">0,00%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD 3: EFICIÊNCIA DE CONTAGEM -->
+          <div class="col-md-4">
+            <div class="card border h-100 shadow-sm">
+              <div class="card-header bg-success text-white fw-bold py-2">
+                <i class="bi bi-speedometer2"></i> Eficiência da Contagem
+              </div>
+              <div class="card-body py-3">
+                <div class="d-flex justify-content-between mb-1">
+                  <span class="text-muted small">Quantidade Contada:</span>
+                  <strong id="ind-semi-efi-contados" class="text-dark">0</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                  <span class="text-muted small">Falta Contar:</span>
+                  <strong id="ind-semi-efi-faltam" class="text-warning text-dark">0</strong>
+                </div>
+                <div class="border-top pt-2 d-flex justify-content-between align-items-center">
+                  <span class="fw-semibold text-dark">Eficiência:</span>
+                  <span id="ind-semi-efi-pct" class="badge bg-success fs-6">0,00%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+
+
+        
         <!-- TABELA 1: ITENS SALVOS DO SALDO DE ESTOQUE (COM BOTÃO DE RETRAIR) -->
         <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
             <h5 class="text-dark m-0">Lista de Saldos Salvos</h5>
@@ -2028,6 +2103,45 @@ async function carregarMetricasAcessorios() {
     }
 }
 
+
+async function carregarMetricasSemiAcabado() {
+    const mes = document.getElementById('mes-semi').value;
+    const ano = document.getElementById('ano-semi').value;
+
+    const formatarPct = (val) => `${Number(val || 0).toFixed(2).replace('.', ',')}%`;
+
+    try {
+        const res = await fetch(`/metricas_semi_acabado?mes=${mes}&ano=${ano}`);
+        const dados = await res.json();
+
+        if (dados.sucesso) {
+            // Card 1: Acurácia por SKU
+            document.getElementById('ind-semi-contados').innerText = dados.acuracia.contados;
+            document.getElementById('ind-semi-corretos').innerText = dados.acuracia.corretos;
+            document.getElementById('ind-semi-pct').innerText = formatarPct(dados.acuracia.percentual);
+
+            // Card 2: Índice de Divergência Líquida
+            document.getElementById('ind-semi-div-volume').innerText = dados.divergencia.volume_contado;
+            const somaDif = dados.divergencia.soma_diferenca;
+            const elSoma = document.getElementById('ind-semi-div-soma');
+            elSoma.innerText = somaDif > 0 ? `+${somaDif}` : somaDif;
+            elSoma.className = somaDif < 0 ? 'text-danger fw-bold' : (somaDif > 0 ? 'text-success fw-bold' : 'text-dark fw-bold');
+
+            const elPctDiv = document.getElementById('ind-semi-div-pct');
+            const pctDiv = dados.divergencia.percentual;
+            elPctDiv.innerText = pctDiv > 0 ? `+${formatarPct(pctDiv)}` : formatarPct(pctDiv);
+            elPctDiv.className = pctDiv < 0 ? 'badge bg-danger fs-6' : (pctDiv > 0 ? 'badge bg-warning text-dark fs-6' : 'badge bg-success fs-6');
+
+            // Card 3: Eficiência
+            document.getElementById('ind-semi-efi-contados').innerText = dados.eficiencia.contados;
+            document.getElementById('ind-semi-efi-faltam').innerText = dados.eficiencia.falta_contar;
+            document.getElementById('ind-semi-efi-pct').innerText = formatarPct(dados.eficiencia.percentual);
+        }
+    } catch (e) {
+        console.error('Erro ao carregar métricas de semi-acabado:', e);
+    }
+}
+    
     
     
   </script>
